@@ -57,11 +57,20 @@ function createServer() {
               user: clientInfo,
             }))
 
-            // Broadcast user online
-            broadcast({ type: MESSAGE_TYPES.USER_ONLINE, userId: clientInfo.id, displayName: clientInfo.displayName }, ws)
-
-            // Send initial state
-            sendInitialState(ws, clientInfo)
+            if (clientInfo.status === 'pending') {
+              // Tell the new user they're waiting for approval
+              ws.send(JSON.stringify({ type: MESSAGE_TYPES.USER_PENDING }))
+              // Notify all online admins about the new pending user
+              broadcastToAdmins({
+                type: MESSAGE_TYPES.USER_JOIN_PENDING,
+                user: { id: clientInfo.id, displayName: clientInfo.displayName, avatarColor: clientInfo.avatarColor },
+              })
+            } else {
+              // Broadcast user online
+              broadcast({ type: MESSAGE_TYPES.USER_ONLINE, userId: clientInfo.id, displayName: clientInfo.displayName }, ws)
+              // Send initial state
+              sendInitialState(ws, clientInfo)
+            }
           } else {
             ws.send(JSON.stringify({ type: MESSAGE_TYPES.AUTH_FAIL, error: result.error }))
             ws.close()
@@ -74,6 +83,32 @@ function createServer() {
         // Verify message signature (skipped in dev mode)
         if (!verifyMessage(msg, clientInfo.publicKey)) {
           ws.send(JSON.stringify({ type: MESSAGE_TYPES.ERROR, error: 'Invalid signature' }))
+          return
+        }
+
+        // Block pending users from sending any messages
+        if (clientInfo.status === 'pending') {
+          ws.send(JSON.stringify({ type: MESSAGE_TYPES.USER_PENDING }))
+          return
+        }
+
+        // Admin: approve a pending user
+        if (msg.type === MESSAGE_TYPES.USER_APPROVE && clientInfo.role === 'admin') {
+          const targetId = msg.payload?.userId
+          if (targetId) {
+            database.db.prepare("UPDATE users SET status = 'active' WHERE id = ?").run(targetId)
+            // Update clientInfo of target if they're online
+            for (const [targetWs, info] of clients) {
+              if (info.id === targetId && info.status === 'pending') {
+                info.status = 'active'
+                targetWs.send(JSON.stringify({ type: MESSAGE_TYPES.USER_APPROVED }))
+                broadcast({ type: MESSAGE_TYPES.USER_ONLINE, userId: info.id, displayName: info.displayName }, targetWs)
+                sendInitialState(targetWs, info)
+                break
+              }
+            }
+            broadcast({ type: MESSAGE_TYPES.USER_APPROVED, userId: targetId })
+          }
           return
         }
 
@@ -111,6 +146,15 @@ function broadcast(message, excludeWs = null) {
   }
 }
 
+function broadcastToAdmins(message, excludeWs = null) {
+  const data = JSON.stringify(message)
+  for (const [ws, info] of clients) {
+    if (ws !== excludeWs && ws.readyState === 1 && info.role === 'admin') {
+      ws.send(data)
+    }
+  }
+}
+
 function broadcastToGroup(message, groupId, excludeWs = null) {
   // Get group member IDs
   const members = database.db.prepare('SELECT user_id FROM group_members WHERE group_id = ?').all(groupId)
@@ -142,7 +186,12 @@ function sendInitialState(ws, user) {
   `).all(user.id)
 
   // Send all users (for presence display)
-  const users = database.db.prepare('SELECT id, display_name, role, avatar_color FROM users WHERE status = ?').all('active')
+  const users = database.db.prepare('SELECT id, display_name, role, avatar_color, status FROM users WHERE status = ?').all('active')
+
+  // Admins also get the pending user list
+  const pendingUsers = user.role === 'admin'
+    ? database.db.prepare("SELECT id, display_name, avatar_color FROM users WHERE status = 'pending'").all()
+    : []
   const onlineUsers = [...clients.values()].map(c => c.id)
 
   // Send ideas visible to this user
@@ -162,7 +211,7 @@ function sendInitialState(ws, user) {
 
   ws.send(JSON.stringify({
     type: MESSAGE_TYPES.SYNC_RESPONSE,
-    data: { tasks, groups, users, onlineUsers, ideas },
+    data: { tasks, groups, users, onlineUsers, ideas, pendingUsers },
   }))
 }
 

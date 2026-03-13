@@ -1,11 +1,21 @@
 import { create } from 'zustand'
 
 export const useUserStore = create((set, get) => ({
-  users: [],      // all known users
-  onlineIds: [],  // currently online user IDs
+  users: [],        // all known active users
+  onlineIds: [],    // currently online user IDs
+  pendingUsers: [], // users awaiting admin approval
 
   setUsers: (users) => set({ users }),
   setOnlineUsers: (onlineIds) => set({ onlineIds }),
+  setPendingUsers: (pendingUsers) => set({ pendingUsers }),
+
+  addPendingUser: (user) => set((s) => ({
+    pendingUsers: s.pendingUsers.some(u => u.id === user.id) ? s.pendingUsers : [...s.pendingUsers, user],
+  })),
+
+  removePendingUser: (userId) => set((s) => ({
+    pendingUsers: s.pendingUsers.filter(u => u.id !== userId),
+  })),
 
   setUserOnline: (userId) => set((s) => ({
     onlineIds: s.onlineIds.includes(userId) ? s.onlineIds : [...s.onlineIds, userId],

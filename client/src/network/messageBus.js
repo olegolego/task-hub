@@ -27,6 +27,7 @@ export function initMessageBus() {
           useGroupStore.getState().setGroups(data.groups || [])
           useUserStore.getState().setUsers(data.users || [])
           useUserStore.getState().setOnlineUsers(data.onlineUsers || [])
+          useUserStore.getState().setPendingUsers(data.pendingUsers || [])
         }
         break
 
@@ -84,6 +85,27 @@ export function initMessageBus() {
 
       case 'user:status':
         // Could show status badges in future
+        break
+
+      // ── Approval flow ────────────────────────────────────────────────────────
+      case 'user:pending':
+        // Tell this client they're waiting for admin approval
+        useConnectionStore.getState().setMyStatus('pending')
+        break
+
+      case 'user:join_pending':
+        // Admin receives notification of a new pending user
+        if (msg.user) useUserStore.getState().addPendingUser(msg.user)
+        break
+
+      case 'user:approved':
+        if (msg.userId) {
+          // Remove from pending list; they'll appear in the online list via user:online
+          useUserStore.getState().removePendingUser(msg.userId)
+        } else {
+          // This message was sent to the approved user themselves (no userId field)
+          useConnectionStore.getState().setMyStatus('active')
+        }
         break
 
       // ── Errors ──────────────────────────────────────────────────────────────

@@ -19,6 +19,11 @@ const MESSAGE_TYPES = {
   USER_ONLINE: 'user:online',
   USER_OFFLINE: 'user:offline',
   USER_STATUS: 'user:status',
+  // Approval flow
+  USER_PENDING: 'user:pending',
+  USER_JOIN_PENDING: 'user:join_pending',
+  USER_APPROVE: 'user:approve',
+  USER_APPROVED: 'user:approved',
   // System
   AUTH_CHALLENGE: 'auth:challenge',
   AUTH_RESPONSE: 'auth:response',

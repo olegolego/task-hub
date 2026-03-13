@@ -113,6 +113,16 @@ function initDb() {
     CREATE INDEX IF NOT EXISTS idx_activity_time ON activity_log(created_at);
   `)
 
+  // Ensure at least one admin exists — promote the oldest active user if needed
+  const adminCount = db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'").get().count
+  if (adminCount === 0) {
+    const oldest = db.prepare("SELECT id FROM users WHERE status = 'active' ORDER BY created_at ASC LIMIT 1").get()
+    if (oldest) {
+      db.prepare("UPDATE users SET role = 'admin' WHERE id = ?").run(oldest.id)
+      console.log('[DB] Auto-promoted oldest user to admin:', oldest.id)
+    }
+  }
+
   console.log('[DB] Initialized at', DB_PATH)
   return db
 }

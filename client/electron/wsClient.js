@@ -1,5 +1,6 @@
 const WebSocket = require('ws')
-const { getOrCreateKeypair, signChallenge } = require('./crypto')
+const { v4: uuidv4 } = require('uuid')
+const { getOrCreateKeypair, signChallenge, signMessage } = require('./crypto')
 
 const RECONNECT_DELAY_MS = 3000
 const MAX_RECONNECT_DELAY_MS = 30000
@@ -107,7 +108,13 @@ function createWsClient({ serverUrl, displayName, onMessage, onState }) {
 
   function send(msg) {
     if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify(msg))
+      const signed = {
+        ...msg,
+        id: msg.id ?? uuidv4(),
+        timestamp: msg.timestamp ?? Date.now(),
+      }
+      signed.signature = signMessage(signed, keypair.secretKeyB64)
+      ws.send(JSON.stringify(signed))
       return true
     }
     return false

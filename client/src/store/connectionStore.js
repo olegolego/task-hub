@@ -7,12 +7,15 @@ export const useConnectionStore = create((set, get) => ({
   displayName: null,
   myUserId: null,
   myPublicKey: null,
+  myRole: null,
+  myStatus: null,
 
   setState: (state) => set({ state }),
   setServerUrl: (serverUrl) => set({ serverUrl }),
   setDisplayName: (displayName) => set({ displayName }),
-  setMyUser: ({ id, displayName }) => set({ myUserId: id, displayName }),
+  setMyUser: ({ id, displayName, role, status }) => set({ myUserId: id, displayName, myRole: role ?? null, myStatus: status ?? 'active' }),
   setMyPublicKey: (myPublicKey) => set({ myPublicKey }),
+  setMyStatus: (myStatus) => set({ myStatus }),
 
   isConnected: () => get().state === 'connected',
 }))

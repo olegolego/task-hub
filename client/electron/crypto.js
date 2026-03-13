@@ -53,6 +53,15 @@ function signChallenge(challenge, secretKeyB64) {
   return encodeBase64(signature)
 }
 
+// Sign an outgoing message body (id + type + payload + timestamp)
+function signMessage(msg, secretKeyB64) {
+  const secretKey = decodeBase64(secretKeyB64)
+  const body = JSON.stringify({ id: msg.id, type: msg.type, payload: msg.payload, timestamp: msg.timestamp })
+  const messageBytes = new TextEncoder().encode(body)
+  const signature = nacl.sign.detached(messageBytes, secretKey)
+  return encodeBase64(signature)
+}
+
 function loadConfig() {
   if (!fs.existsSync(CONFIG_PATH)) return {}
   try { return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')) } catch { return {} }
@@ -64,4 +73,4 @@ function saveConfig(config) {
   fs.writeFileSync(CONFIG_PATH, JSON.stringify({ ...current, ...config }, null, 2))
 }
 
-module.exports = { getOrCreateKeypair, signChallenge, loadConfig, saveConfig, KEY_DIR }
+module.exports = { getOrCreateKeypair, signChallenge, signMessage, loadConfig, saveConfig, KEY_DIR }

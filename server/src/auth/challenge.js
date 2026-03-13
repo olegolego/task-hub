@@ -38,13 +38,19 @@ function handleAuth(msg, expectedChallenge) {
       const avatarColor = colors[Math.floor(Math.random() * colors.length)]
       const name = displayName || `User-${userId.slice(0, 6)}`
 
+      // First user ever becomes admin and is immediately active
+      const userCount = database.db.prepare("SELECT COUNT(*) as count FROM users").get().count
+      const isFirstUser = userCount === 0
+      const role = isFirstUser ? 'admin' : 'member'
+      const status = isFirstUser ? 'active' : 'pending'
+
       database.db.prepare(`
-        INSERT INTO users (id, public_key, display_name, avatar_color, status)
-        VALUES (?, ?, ?, ?, 'active')
-      `).run(userId, publicKeyB64, name, avatarColor)
+        INSERT INTO users (id, public_key, display_name, avatar_color, role, status)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(userId, publicKeyB64, name, avatarColor, role, status)
 
       user = database.db.prepare('SELECT * FROM users WHERE id = ?').get(userId)
-      console.log('[Auth] New user registered:', name, userId)
+      console.log('[Auth] New user registered:', name, userId, `(${role}, ${status})`)
     } else {
       // Update last seen
       database.db.prepare("UPDATE users SET last_seen_at = datetime('now') WHERE id = ?").run(userId)
@@ -56,6 +62,7 @@ function handleAuth(msg, expectedChallenge) {
         id: user.id,
         displayName: user.display_name,
         role: user.role,
+        status: user.status,
         avatarColor: user.avatar_color,
         publicKey: publicKeyB64,
       },
