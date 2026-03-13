@@ -1,0 +1,36 @@
+{
+  "name": "@task-hub/client",
+  "version": "1.0.0",
+  "description": "Always-on-top desktop task manager",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && env -u ELECTRON_RUN_AS_NODE electron .\"",
+    "electron": "env -u ELECTRON_RUN_AS_NODE electron .",
+    "build": "vite build",
+    "package": "npm run build && electron-builder",
+    "postinstall": "npm_config_python=/Library/Frameworks/Python.framework/Versions/3.11/bin/python3.11 electron-rebuild -f -w better-sqlite3"
+  },
+  "dependencies": {
+    "@task-hub/shared": "*",
+    "better-sqlite3": "^11.5.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zustand": "^4.5.5",
+    "tweetnacl": "^1.0.3",
+    "tweetnacl-util": "^0.15.1",
+    "uuid": "^11.0.3",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.7.1",
+    "@vitejs/plugin-react": "^4.4.0",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.0",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "vite": "^6.0.3",
+    "wait-on": "^8.0.1"
+  }
+}

@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.DS_Store
+
+# Local user keypair and config — never commit these
+~/.taskmanager/
+*.db
+*.db-shm
+*.db-wal
+
+# Env / secrets
+.env
+.env.*
+
+# Build artifacts
+client/dist/
+server/dist/

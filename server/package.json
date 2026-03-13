@@ -1,0 +1,17 @@
+{
+  "name": "@task-hub/server",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@task-hub/shared": "file:../shared",
+    "better-sqlite3": "^11.5.0",
+    "ws": "^8.18.0",
+    "tweetnacl": "^1.0.3",
+    "tweetnacl-util": "^0.15.1",
+    "uuid": "^11.0.3"
+  }
+}
