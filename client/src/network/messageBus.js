@@ -4,6 +4,7 @@ import { useIdeaStore } from '../store/ideaStore'
 import { useGroupStore } from '../store/groupStore'
 import { useUserStore } from '../store/userStore'
 import { useConnectionStore } from '../store/connectionStore'
+import { useMessageStore } from '../store/messageStore'
 
 /**
  * Subscribes to IPC message and state events and routes them to the appropriate stores.
@@ -105,6 +106,17 @@ export function initMessageBus() {
         } else {
           // This message was sent to the approved user themselves (no userId field)
           useConnectionStore.getState().setMyStatus('active')
+        }
+        break
+
+      // ── Direct messages ─────────────────────────────────────────────────────
+      case 'dm:received':
+        if (msg.dm) useMessageStore.getState().addMessage(msg.dm)
+        break
+
+      case 'dm:history_response':
+        if (msg.withUserId && msg.messages) {
+          useMessageStore.getState().setHistory(msg.withUserId, msg.messages)
         }
         break
 

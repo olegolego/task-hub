@@ -12,7 +12,7 @@ function fingerprintOf(publicKeyBase64) {
 
 // Handle auth:response message
 function handleAuth(msg, expectedChallenge) {
-  const { publicKey: publicKeyB64, signature: signatureB64, displayName, challenge } = msg
+  const { publicKey: publicKeyB64, encPublicKey: encPublicKeyB64, signature: signatureB64, displayName, challenge } = msg
 
   if (challenge !== expectedChallenge) {
     return { success: false, error: 'Challenge mismatch' }
@@ -45,15 +45,15 @@ function handleAuth(msg, expectedChallenge) {
       const status = isFirstUser ? 'active' : 'pending'
 
       database.db.prepare(`
-        INSERT INTO users (id, public_key, display_name, avatar_color, role, status)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run(userId, publicKeyB64, name, avatarColor, role, status)
+        INSERT INTO users (id, public_key, enc_public_key, display_name, avatar_color, role, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(userId, publicKeyB64, encPublicKeyB64 || null, name, avatarColor, role, status)
 
       user = database.db.prepare('SELECT * FROM users WHERE id = ?').get(userId)
       console.log('[Auth] New user registered:', name, userId, `(${role}, ${status})`)
     } else {
-      // Update last seen
-      database.db.prepare("UPDATE users SET last_seen_at = datetime('now') WHERE id = ?").run(userId)
+      // Update last seen and enc key if provided
+      database.db.prepare("UPDATE users SET last_seen_at = datetime('now'), enc_public_key = COALESCE(?, enc_public_key) WHERE id = ?").run(encPublicKeyB64 || null, userId)
     }
 
     return {
@@ -65,6 +65,7 @@ function handleAuth(msg, expectedChallenge) {
         status: user.status,
         avatarColor: user.avatar_color,
         publicKey: publicKeyB64,
+        encPublicKey: encPublicKeyB64 || user.enc_public_key,
       },
     }
   } catch (err) {

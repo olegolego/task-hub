@@ -2,8 +2,9 @@ const tasksModule = require('./tasks.module')
 const ideasModule = require('./ideas.module')
 const groupsModule = require('./groups.module')
 const presenceModule = require('./presence.module')
+const messagesModule = require('./messages.module')
 
-const MODULES = [tasksModule, ideasModule, groupsModule, presenceModule]
+const MODULES = [tasksModule, ideasModule, groupsModule, presenceModule, messagesModule]
 
 const moduleRegistry = {
   loadAll(db) {

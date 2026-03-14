@@ -111,7 +111,26 @@ function initDb() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_activity_time ON activity_log(created_at);
+
+    CREATE TABLE IF NOT EXISTS direct_messages (
+      id TEXT PRIMARY KEY,
+      from_user TEXT NOT NULL REFERENCES users(id),
+      to_user TEXT NOT NULL REFERENCES users(id),
+      encrypted TEXT NOT NULL,
+      nonce TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_dm_conversation ON direct_messages(from_user, to_user);
+    CREATE INDEX IF NOT EXISTS idx_dm_time ON direct_messages(created_at);
   `)
+
+  // Migration: add enc_public_key column to users if it doesn't exist yet
+  const hasEncKey = db.prepare("SELECT COUNT(*) as c FROM pragma_table_info('users') WHERE name='enc_public_key'").get().c
+  if (!hasEncKey) {
+    db.exec('ALTER TABLE users ADD COLUMN enc_public_key TEXT')
+    console.log('[DB] Migration: added enc_public_key to users')
+  }
 
   // Ensure at least one admin exists — promote the oldest active user if needed
   const adminCount = db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'").get().count

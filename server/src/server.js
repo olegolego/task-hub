@@ -185,8 +185,8 @@ function sendInitialState(ws, user) {
     WHERE gm.user_id = ?
   `).all(user.id)
 
-  // Send all users (for presence display)
-  const users = database.db.prepare('SELECT id, display_name, role, avatar_color, status FROM users WHERE status = ?').all('active')
+  // Send all users (for presence display + DM encryption key lookup)
+  const users = database.db.prepare('SELECT id, display_name, role, avatar_color, status, enc_public_key FROM users WHERE status = ?').all('active')
 
   // Admins also get the pending user list
   const pendingUsers = user.role === 'admin'
@@ -214,5 +214,13 @@ function sendInitialState(ws, user) {
     data: { tasks, groups, users, onlineUsers, ideas, pendingUsers },
   }))
 }
+
+// Graceful shutdown — flush WAL to disk before exit
+function shutdown() {
+  try { database.db?.pragma('wal_checkpoint(TRUNCATE)') } catch {}
+  process.exit(0)
+}
+process.on('SIGINT', shutdown)
+process.on('SIGTERM', shutdown)
 
 module.exports = { createServer, broadcast, broadcastToGroup, clients }

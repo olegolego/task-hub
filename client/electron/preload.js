@@ -31,6 +31,10 @@ contextBridge.exposeInMainWorld('api', {
   // Auth
   getPublicKey: () => ipcRenderer.invoke('auth:getPublicKey'),
 
+  // Direct messages (E2E encrypted)
+  sendDM: (toUserId, text) => ipcRenderer.invoke('dm:send', { toUserId, text }),
+  loadDMHistory: (withUserId, limit) => ipcRenderer.invoke('dm:history', { withUserId, limit }),
+
   // Focus input (sent from tray)
   onFocusInput: (handler) => {
     ipcRenderer.on('focus-input', handler)

@@ -1,6 +1,6 @@
 const WebSocket = require('ws')
 const { v4: uuidv4 } = require('uuid')
-const { getOrCreateKeypair, signChallenge, signMessage } = require('./crypto')
+const { getOrCreateKeypair, getOrCreateEncryptionKeypair, signChallenge, signMessage } = require('./crypto')
 
 const RECONNECT_DELAY_MS = 3000
 const MAX_RECONNECT_DELAY_MS = 30000
@@ -21,6 +21,7 @@ function createWsClient({ serverUrl, displayName, onMessage, onState }) {
   let currentState = 'offline'
 
   const keypair = getOrCreateKeypair()
+  const encKeypair = getOrCreateEncryptionKeypair()
 
   function setState(state) {
     currentState = state
@@ -62,6 +63,7 @@ function createWsClient({ serverUrl, displayName, onMessage, onState }) {
           type: 'auth:response',
           challenge: msg.challenge,
           publicKey: keypair.publicKeyB64,
+          encPublicKey: encKeypair.publicKeyB64,
           signature,
           displayName,
         }
@@ -138,7 +140,7 @@ function createWsClient({ serverUrl, displayName, onMessage, onState }) {
   // Start connecting
   connect()
 
-  return { send, destroy, getPublicKey, getState: () => currentState }
+  return { send, destroy, getPublicKey, getEncKeypair: () => encKeypair, getState: () => currentState }
 }
 
 module.exports = { createWsClient }

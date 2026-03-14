@@ -35,4 +35,5 @@ export const NAV_PANELS = {
   IDEAS: 'ideas',
   GROUPS: 'groups',
   PEOPLE: 'people',
+  MESSAGES: 'messages',
 }

@@ -18,6 +18,10 @@ export const ipc = {
   // Auth
   getPublicKey: () => api()?.getPublicKey() ?? Promise.resolve(null),
 
+  // Direct messages
+  sendDM: (toUserId, text) => api()?.sendDM(toUserId, text) ?? Promise.resolve({ ok: false }),
+  loadDMHistory: (withUserId, limit) => api()?.loadDMHistory(withUserId, limit) ?? Promise.resolve(false),
+
   // Subscriptions (return cleanup functions)
   onMessage: (handler) => api()?.onMessage(handler) ?? (() => {}),
   onConnectionState: (handler) => api()?.onConnectionState(handler) ?? (() => {}),

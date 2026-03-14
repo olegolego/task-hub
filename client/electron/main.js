@@ -1,6 +1,6 @@
 const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut } = require('electron')
 const path = require('path')
-const { getOrCreateKeypair, loadConfig, saveConfig } = require('./crypto')
+const { getOrCreateKeypair, getOrCreateEncryptionKeypair, encryptDM, decryptDM, loadConfig, saveConfig } = require('./crypto')
 const { createWsClient } = require('./wsClient')
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
@@ -10,6 +10,10 @@ let setupWindow = null
 let tray = null
 let isPinned = true
 let wsClient = null
+
+// Cache of userId → encPublicKey for DM encryption (populated from sync:response)
+const encPubKeyCache = new Map()
+let myUserId = null
 
 // ── Window creation ──────────────────────────────────────────────────────────
 
@@ -141,6 +145,50 @@ function startWsClient(serverUrl, displayName) {
     serverUrl,
     displayName,
     onMessage: (msg) => {
+      // Track own user ID from auth success
+      if (msg.type === 'auth:success' && msg.user) {
+        myUserId = msg.user.id
+        if (msg.user.encPublicKey) encPubKeyCache.set(msg.user.id, msg.user.encPublicKey)
+      }
+
+      // Cache enc public keys from sync response
+      if (msg.type === 'sync:response' && msg.data?.users) {
+        for (const u of msg.data.users) {
+          if (u.enc_public_key) encPubKeyCache.set(u.id, u.enc_public_key)
+        }
+      }
+
+      // Decrypt incoming DM before forwarding to renderer
+      if (msg.type === 'dm:received' && msg.dm) {
+        const dm = msg.dm
+        const otherUserId = dm.fromUserId === myUserId ? dm.toUserId : dm.fromUserId
+        const otherEncPubKey = encPubKeyCache.get(otherUserId)
+        const myEncKeypair = getOrCreateEncryptionKeypair()
+        if (otherEncPubKey && myEncKeypair) {
+          dm.text = decryptDM(dm.encrypted, dm.nonce, otherEncPubKey, myEncKeypair.secretKeyB64) ?? '[decryption failed]'
+        } else {
+          dm.text = '[missing encryption key]'
+        }
+        delete dm.encrypted
+        delete dm.nonce
+      }
+
+      // Decrypt DM history before forwarding
+      if (msg.type === 'dm:history_response' && msg.messages) {
+        const myEncKeypair = getOrCreateEncryptionKeypair()
+        for (const dm of msg.messages) {
+          const otherUserId = dm.fromUserId === myUserId ? dm.toUserId : dm.fromUserId
+          const otherEncPubKey = encPubKeyCache.get(otherUserId)
+          if (otherEncPubKey && myEncKeypair) {
+            dm.text = decryptDM(dm.encrypted, dm.nonce, otherEncPubKey, myEncKeypair.secretKeyB64) ?? '[decryption failed]'
+          } else {
+            dm.text = '[missing encryption key]'
+          }
+          delete dm.encrypted
+          delete dm.nonce
+        }
+      }
+
       // Forward message to renderer
       mainWindow?.webContents.send('net:message', msg)
       setupWindow?.webContents.send('net:message', msg)
@@ -156,8 +204,9 @@ function startWsClient(serverUrl, displayName) {
 // ── App lifecycle ─────────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
-  // Ensure keypair exists
+  // Ensure keypairs exist
   getOrCreateKeypair()
+  getOrCreateEncryptionKeypair()
 
   const config = loadConfig()
 
@@ -251,4 +300,27 @@ ipcMain.handle('net:send', (_, msg) => {
 ipcMain.handle('auth:getPublicKey', () => {
   const kp = getOrCreateKeypair()
   return kp.publicKeyB64
+})
+
+// ── IPC: Direct Messages ──────────────────────────────────────────────────────
+
+ipcMain.handle('dm:send', (_, { toUserId, text }) => {
+  const recipientEncPubKey = encPubKeyCache.get(toUserId)
+  if (!recipientEncPubKey) return { ok: false, error: 'No encryption key for recipient' }
+
+  const myEncKeypair = getOrCreateEncryptionKeypair()
+  const { encrypted, nonce } = encryptDM(text, recipientEncPubKey, myEncKeypair.secretKeyB64)
+
+  const sent = wsClient?.send({
+    type: 'dm:send',
+    payload: { toUserId, encrypted, nonce },
+  })
+  return { ok: !!sent }
+})
+
+ipcMain.handle('dm:history', (_, { withUserId, limit }) => {
+  return wsClient?.send({
+    type: 'dm:history',
+    payload: { withUserId, limit: limit ?? 50 },
+  }) ?? false
 })

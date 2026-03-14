@@ -1,5 +1,6 @@
 import React from 'react'
 import { NAV_PANELS } from '../../utils/constants'
+import { useMessageStore } from '../../store/messageStore'
 
 const TasksIcon = () => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -39,14 +40,22 @@ const PeopleIcon = () => (
   </svg>
 )
 
+const MessagesIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  </svg>
+)
+
 const NAV_ITEMS = [
   { id: NAV_PANELS.TASKS, title: 'Tasks', icon: TasksIcon },
   { id: NAV_PANELS.IDEAS, title: 'Ideas', icon: IdeasIcon },
   { id: NAV_PANELS.GROUPS, title: 'Groups', icon: GroupsIcon },
   { id: NAV_PANELS.PEOPLE, title: 'People', icon: PeopleIcon },
+  { id: NAV_PANELS.MESSAGES, title: 'Messages', icon: MessagesIcon },
 ]
 
 export default function Sidebar({ activePanel, onPanelChange }) {
+  const totalUnread = useMessageStore((s) => s.totalUnread())
   return (
     <div
       style={{
@@ -68,6 +77,7 @@ export default function Sidebar({ activePanel, onPanelChange }) {
           title={title}
           active={activePanel === id}
           onClick={() => onPanelChange(id)}
+          badge={id === NAV_PANELS.MESSAGES && totalUnread > 0 ? totalUnread : 0}
         >
           <Icon />
         </SidebarIcon>
@@ -76,12 +86,13 @@ export default function Sidebar({ activePanel, onPanelChange }) {
   )
 }
 
-function SidebarIcon({ children, onClick, title, active }) {
+function SidebarIcon({ children, onClick, title, active, badge }) {
   return (
     <button
       onClick={onClick}
       title={title}
       style={{
+        position: 'relative',
         width: 32,
         height: 32,
         borderRadius: 6,
@@ -108,6 +119,26 @@ function SidebarIcon({ children, onClick, title, active }) {
       }}
     >
       {children}
+      {badge > 0 && (
+        <span style={{
+          position: 'absolute',
+          top: 2,
+          right: 2,
+          minWidth: 14,
+          height: 14,
+          borderRadius: 7,
+          background: '#f72585',
+          color: '#fff',
+          fontSize: 9,
+          fontWeight: 700,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '0 2px',
+        }}>
+          {badge > 9 ? '9+' : badge}
+        </span>
+      )}
     </button>
   )
 }

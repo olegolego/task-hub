@@ -7,6 +7,7 @@ import StatusBar from './components/layout/StatusBar'
 import IdeasBoard from './components/ideas/IdeasBoard'
 import GroupPanel from './components/groups/GroupPanel'
 import PeoplePanel from './components/people/PeoplePanel'
+import MessagesPanel from './components/messages/MessagesPanel'
 import SetupScreen from './components/setup/SetupScreen'
 import { useTaskStore } from './store/taskStore'
 import { useShortcuts } from './hooks/useShortcuts'
@@ -20,6 +21,7 @@ const PANEL_TITLES = {
   [NAV_PANELS.IDEAS]: 'IDEAS',
   [NAV_PANELS.GROUPS]: 'GROUPS',
   [NAV_PANELS.PEOPLE]: 'PEOPLE',
+  [NAV_PANELS.MESSAGES]: 'MESSAGES',
 }
 
 export default function App() {
@@ -98,6 +100,7 @@ export default function App() {
           {activePanel === NAV_PANELS.IDEAS && <IdeasBoard />}
           {activePanel === NAV_PANELS.GROUPS && <GroupPanel />}
           {activePanel === NAV_PANELS.PEOPLE && <PeoplePanel />}
+          {activePanel === NAV_PANELS.MESSAGES && <MessagesPanel />}
         </div>
       </div>
 
