@@ -15,6 +15,11 @@ let wsClient = null
 const encPubKeyCache = new Map()
 let myUserId = null
 
+// Last known connection state + last sync/auth messages — replayed when renderer comes online
+let lastConnectionState = 'offline'
+let lastAuthMessage = null
+let lastSyncMessage = null
+
 // ── Window creation ──────────────────────────────────────────────────────────
 
 function createMainWindow() {
@@ -149,6 +154,7 @@ function startWsClient(serverUrl, displayName) {
       if (msg.type === 'auth:success' && msg.user) {
         myUserId = msg.user.id
         if (msg.user.encPublicKey) encPubKeyCache.set(msg.user.id, msg.user.encPublicKey)
+        lastAuthMessage = msg
       }
 
       // Cache enc public keys from sync response
@@ -156,6 +162,7 @@ function startWsClient(serverUrl, displayName) {
         for (const u of msg.data.users) {
           if (u.enc_public_key) encPubKeyCache.set(u.id, u.enc_public_key)
         }
+        lastSyncMessage = msg
       }
 
       // Decrypt incoming DM before forwarding to renderer
@@ -195,6 +202,7 @@ function startWsClient(serverUrl, displayName) {
     },
     onState: (state) => {
       console.log('[Main] Connection state:', state)
+      lastConnectionState = state
       mainWindow?.webContents.send('net:state', state)
       setupWindow?.webContents.send('net:state', state)
     },
@@ -263,6 +271,17 @@ ipcMain.handle('window:togglePin', () => {
 })
 
 ipcMain.handle('window:getPin', () => isPinned)
+
+// Renderer calls this when it has finished mounting and registered all IPC listeners.
+// We replay the last known state + auth/sync so it doesn't show stale "offline".
+ipcMain.handle('renderer:ready', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (win) {
+    win.webContents.send('net:state', lastConnectionState)
+    if (lastAuthMessage) win.webContents.send('net:message', lastAuthMessage)
+    if (lastSyncMessage) win.webContents.send('net:message', lastSyncMessage)
+  }
+})
 
 // ── IPC: Config ───────────────────────────────────────────────────────────────
 

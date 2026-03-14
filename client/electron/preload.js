@@ -28,6 +28,9 @@ contextBridge.exposeInMainWorld('api', {
     return () => ipcRenderer.removeListener('net:state', listener)
   },
 
+  // Signal that renderer is ready — main will replay last state + sync
+  notifyReady: () => ipcRenderer.invoke('renderer:ready'),
+
   // Auth
   getPublicKey: () => ipcRenderer.invoke('auth:getPublicKey'),
 

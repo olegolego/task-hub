@@ -42,8 +42,9 @@ export default function App() {
       return
     }
 
-    // Initialize message bus
+    // Initialize message bus first, then signal ready so main replays state
     const cleanup = initMessageBus()
+    ipc.notifyReady()
 
     // Load settings and config
     Promise.all([

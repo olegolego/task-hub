@@ -18,6 +18,9 @@ export const ipc = {
   // Auth
   getPublicKey: () => api()?.getPublicKey() ?? Promise.resolve(null),
 
+  // Signal renderer is ready (replays state + sync from main)
+  notifyReady: () => api()?.notifyReady() ?? Promise.resolve(),
+
   // Direct messages
   sendDM: (toUserId, text) => api()?.sendDM(toUserId, text) ?? Promise.resolve({ ok: false }),
   loadDMHistory: (withUserId, limit) => api()?.loadDMHistory(withUserId, limit) ?? Promise.resolve(false),
