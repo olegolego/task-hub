@@ -15,6 +15,9 @@ const MESSAGE_TYPES = {
   GROUP_CREATE: 'group:create',
   GROUP_JOIN: 'group:join',
   GROUP_LEAVE: 'group:leave',
+  GROUP_INVITE: 'group:invite',
+  GROUP_INVITED: 'group:invited',
+  GROUP_MEMBERS: 'group:members',
   // Presence
   USER_ONLINE: 'user:online',
   USER_OFFLINE: 'user:offline',

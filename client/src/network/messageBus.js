@@ -75,6 +75,16 @@ export function initMessageBus() {
         useGroupStore.getState().handleMemberLeft(msg)
         break
 
+      case 'group:invited':
+        useGroupStore.getState().handleInvited(msg)
+        break
+
+      case 'group:members':
+        if (msg.groupId && msg.members) {
+          useGroupStore.getState().setGroupMembers(msg.groupId, msg.members)
+        }
+        break
+
       // ── Presence ────────────────────────────────────────────────────────────
       case 'user:online':
         useUserStore.getState().setUserOnline(msg.userId)
