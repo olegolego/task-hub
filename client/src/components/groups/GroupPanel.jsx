@@ -22,6 +22,7 @@ export default function GroupPanel() {
   const [activeTab, setActiveTab] = useState('tasks')
   const inviteRef = useRef(null)
   const users = useUserStore((s) => s.users)
+  const unreadByGroup = useGroupChatStore((s) => s.unreadByGroup)
 
   // Close invite dropdown when clicking outside
   useEffect(() => {
@@ -206,16 +207,28 @@ export default function GroupPanel() {
         </div>
 
         {/* Tab bar */}
-        <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          <button
-            onClick={() => setActiveTab('tasks')}
-            style={{ flex: 1, padding: '6px', background: 'none', border: 'none', borderBottom: activeTab === 'tasks' ? '2px solid var(--accent)' : '2px solid transparent', color: activeTab === 'tasks' ? 'var(--accent)' : 'var(--text-secondary)', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
-          >Tasks</button>
-          <button
-            onClick={() => { setActiveTab('chat'); useGroupChatStore.getState().loadHistory(activeGroupId) }}
-            style={{ flex: 1, padding: '6px', background: 'none', border: 'none', borderBottom: activeTab === 'chat' ? '2px solid var(--accent)' : '2px solid transparent', color: activeTab === 'chat' ? 'var(--accent)' : 'var(--text-secondary)', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
-          >Chat</button>
-        </div>
+        {(() => {
+          const chatUnread = unreadByGroup[activeGroupId] ?? 0
+          return (
+            <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              <button
+                onClick={() => { setActiveTab('tasks'); useGroupChatStore.getState().setActiveGroup(null) }}
+                style={{ flex: 1, padding: '6px', background: 'none', border: 'none', borderBottom: activeTab === 'tasks' ? '2px solid var(--accent)' : '2px solid transparent', color: activeTab === 'tasks' ? 'var(--accent)' : 'var(--text-secondary)', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
+              >Tasks</button>
+              <button
+                onClick={() => { setActiveTab('chat'); useGroupChatStore.getState().setActiveGroup(activeGroupId); useGroupChatStore.getState().loadHistory(activeGroupId) }}
+                style={{ flex: 1, padding: '6px', background: 'none', border: 'none', borderBottom: activeTab === 'chat' ? '2px solid var(--accent)' : '2px solid transparent', color: activeTab === 'chat' ? 'var(--accent)' : 'var(--text-secondary)', cursor: 'pointer', fontSize: 11, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+              >
+                Chat
+                {chatUnread > 0 && activeTab !== 'chat' && (
+                  <span style={{ minWidth: 16, height: 16, borderRadius: 8, background: '#f72585', color: '#fff', fontSize: 9, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px' }}>
+                    {chatUnread > 9 ? '9+' : chatUnread}
+                  </span>
+                )}
+              </button>
+            </div>
+          )
+        })()}
 
         {activeTab === 'tasks' && (
           <>

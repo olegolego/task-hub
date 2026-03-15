@@ -20,7 +20,7 @@ function formatBytes(n) {
 }
 
 export default function FilesPanel() {
-  const { files, loading, loadFiles, deleteFile, getFolders, createFolder } = useFilesStore()
+  const { files, loading, loadFiles, deleteFile, deleteFolder, getFolders, createFolder } = useFilesStore()
   const myUserId = useConnectionStore((s) => s.myUserId)
   const myRole = useConnectionStore((s) => s.myRole)
   const [activeFolder, setActiveFolder] = useState('All')
@@ -93,16 +93,34 @@ export default function FilesPanel() {
       )}
 
       {/* Folder tabs */}
-      <div style={{ display: 'flex', gap: 4, padding: '6px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)', overflowX: 'auto', flexShrink: 0 }}>
-        {folders.map(folder => (
-          <button
-            key={folder}
-            onClick={() => setActiveFolder(folder)}
-            style={{ background: activeFolder === folder ? 'var(--accent)' : 'var(--hover)', border: 'none', borderRadius: 4, color: activeFolder === folder ? '#1a1a2e' : 'var(--text-secondary)', fontSize: 11, padding: '3px 8px', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: activeFolder === folder ? 600 : 400 }}
-          >
-            {folder}
-          </button>
-        ))}
+      <div style={{ display: 'flex', gap: 4, padding: '6px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)', overflowX: 'auto', flexShrink: 0, alignItems: 'center' }}>
+        {folders.map(folder => {
+          const isDeletable = folder !== 'All' && folder !== 'General' && myRole === 'admin'
+          const isActive = activeFolder === folder
+          return (
+            <div key={folder} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <button
+                onClick={() => setActiveFolder(folder)}
+                style={{ background: isActive ? 'var(--accent)' : 'var(--hover)', border: 'none', borderRadius: 4, color: isActive ? '#1a1a2e' : 'var(--text-secondary)', fontSize: 11, padding: isDeletable ? '3px 22px 3px 8px' : '3px 8px', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: isActive ? 600 : 400 }}
+              >
+                {folder}
+              </button>
+              {isDeletable && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (window.confirm(`Delete folder "${folder}"? Files inside will be moved to General.`)) {
+                      deleteFolder(folder)
+                      if (activeFolder === folder) setActiveFolder('All')
+                    }
+                  }}
+                  style={{ position: 'absolute', right: 3, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: isActive ? '#1a1a2e' : '#ef476f', fontSize: 10, padding: 0, lineHeight: 1, opacity: 0.7 }}
+                  title="Delete folder"
+                >✕</button>
+              )}
+            </div>
+          )
+        })}
       </div>
 
       {/* File list */}
@@ -176,7 +194,9 @@ function FileRow({ file, myUserId, myRole, downloading, onDownload, onDelete }) 
         </button>
         {canDelete && (
           <button
-            onClick={onDelete}
+            onClick={() => {
+              if (window.confirm(`Delete "${file.name}"?`)) onDelete()
+            }}
             style={{ background: 'transparent', border: '1px solid rgba(239,71,111,0.3)', borderRadius: 4, color: '#ef476f', fontSize: 10, padding: '2px 6px', cursor: 'pointer' }}
           >✕</button>
         )}

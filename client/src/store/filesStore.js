@@ -37,6 +37,16 @@ export const useFilesStore = create((set, get) => ({
     ipc.sendMessage({ type: 'files:delete', payload: { fileId } })
   },
 
+  deleteFolder: (name) => {
+    ipc.sendMessage({ type: 'files:delete_folder', payload: { name } })
+  },
+
+  removeFolder: (name) => set((s) => ({
+    folders: s.folders.filter(f => f !== name),
+    // Move files that were in this folder to General in local state
+    files: s.files.map(f => f.folder === name ? { ...f, folder: 'General' } : f),
+  })),
+
   getFolders: () => {
     const { files, folders } = get()
     const fromFiles = files.map(f => f.folder || 'General')

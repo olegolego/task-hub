@@ -1,6 +1,9 @@
 import React from 'react'
 import { NAV_PANELS } from '../../utils/constants'
 import { useMessageStore } from '../../store/messageStore'
+import { useGroupChatStore } from '../../store/groupChatStore'
+import { useMeetingsStore } from '../../store/meetingsStore'
+import { useConnectionStore } from '../../store/connectionStore'
 
 const TasksIcon = () => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -72,7 +75,12 @@ const NAV_ITEMS = [
 ]
 
 export default function Sidebar({ activePanel, onPanelChange }) {
-  const totalUnread = useMessageStore((s) => s.totalUnread())
+  const totalDmUnread = useMessageStore((s) => s.totalUnread())
+  const totalGroupUnread = useGroupChatStore((s) => s.totalUnread())
+  const myId = useConnectionStore((s) => s.myUserId)
+  const pendingMeetings = useMeetingsStore((s) =>
+    s.meetings.filter(m => m.attendees?.some(a => a.userId === myId && a.status === 'pending') && m.endTime > Date.now()).length
+  )
   return (
     <div
       style={{
@@ -94,7 +102,11 @@ export default function Sidebar({ activePanel, onPanelChange }) {
           title={title}
           active={activePanel === id}
           onClick={() => onPanelChange(id)}
-          badge={id === NAV_PANELS.MESSAGES && totalUnread > 0 ? totalUnread : 0}
+          badge={
+            id === NAV_PANELS.MESSAGES ? totalDmUnread :
+            id === NAV_PANELS.GROUPS ? totalGroupUnread :
+            id === NAV_PANELS.CALENDAR ? pendingMeetings : 0
+          }
         >
           <Icon />
         </SidebarIcon>

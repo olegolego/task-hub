@@ -37,6 +37,24 @@ async function handle(msg, { clientInfo, ws, broadcast, clients }) {
     return
   }
 
+  // Delete a folder (admin only; optionally move files to General)
+  if (msg.type === 'files:delete_folder') {
+    const { name } = msg.payload || {}
+    if (!name) return
+    if (clientInfo.role !== 'admin') {
+      ws.send(JSON.stringify({ type: MESSAGE_TYPES.ERROR, error: 'Only admins can delete folders' }))
+      return
+    }
+    // Move any files in this folder to General
+    db.prepare("UPDATE company_files SET folder = 'General' WHERE folder = ?").run(name)
+    db.prepare('DELETE FROM company_folders WHERE name = ?').run(name)
+    const outMsg = JSON.stringify({ type: 'files:folder_deleted', name })
+    for (const [ws2] of clients) {
+      if (ws2.readyState === 1) ws2.send(outMsg)
+    }
+    return
+  }
+
   // Delete a company file (any active user can delete their own; admin can delete any)
   if (msg.type === 'files:delete') {
     const { fileId } = msg.payload || {}
@@ -58,7 +76,7 @@ async function handle(msg, { clientInfo, ws, broadcast, clients }) {
 
 module.exports = {
   name: 'companyFiles',
-  messageTypes: ['files:list', 'files:delete', 'files:create_folder'],
+  messageTypes: ['files:list', 'files:delete', 'files:create_folder', 'files:delete_folder'],
   init,
   handle,
 }

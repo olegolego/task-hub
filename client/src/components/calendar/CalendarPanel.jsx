@@ -210,8 +210,7 @@ function CreateMeetingModal({ onClose }) {
 // ─── Meeting Detail Popover ───────────────────────────────────────────────────
 function MeetingPopover({ meeting, anchorRect, onClose }) {
   const { respondToMeeting, deleteMeeting } = useMeetingsStore()
-  const myUser = useConnectionStore((s) => s.myUser)
-  const myId = myUser?.id
+  const myId = useConnectionStore((s) => s.myUserId)
 
   const myAttendee = meeting.attendees?.find(a => a.userId === myId)
   const isCreator = meeting.createdBy === myId
@@ -441,9 +440,33 @@ function UpcomingList({ meetings }) {
   )
 }
 
+// ─── Pending Invites Banner ───────────────────────────────────────────────────
+function PendingInvitesBanner({ meetings, myId }) {
+  const { respondToMeeting } = useMeetingsStore()
+  const pending = meetings.filter(m =>
+    m.attendees?.some(a => a.userId === myId && a.status === 'pending') && m.endTime > Date.now()
+  )
+  if (pending.length === 0) return null
+  return (
+    <div style={{ padding: '6px 16px', background: 'rgba(255,209,102,0.08)', borderBottom: '1px solid rgba(255,209,102,0.18)', display: 'flex', flexDirection: 'column', gap: 5 }}>
+      <span style={{ fontSize: 10, fontWeight: 700, color: '#ffd166', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pending invites</span>
+      {pending.map(m => (
+        <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--text-primary)', flex: 1 }}>
+            <b>{m.title}</b> · {formatDate(m.startTime)} {formatTime(m.startTime)}
+          </span>
+          <button onClick={() => respondToMeeting(m.id, 'accepted')} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: 'none', background: '#06d6a0', color: '#1a1a2e', cursor: 'pointer', fontWeight: 600 }}>Accept</button>
+          <button onClick={() => respondToMeeting(m.id, 'declined')} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: '1px solid rgba(239,71,111,0.4)', background: 'transparent', color: '#ef476f', cursor: 'pointer' }}>Decline</button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ─── CalendarPanel (main) ─────────────────────────────────────────────────────
 export default function CalendarPanel() {
   const { meetings, loadMeetings } = useMeetingsStore()
+  const myId = useConnectionStore((s) => s.myUserId)
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()))
   const [showCreate, setShowCreate] = useState(false)
   const [selectedMeeting, setSelectedMeeting] = useState(null)
@@ -512,6 +535,9 @@ export default function CalendarPanel() {
           + New Meeting
         </button>
       </div>
+
+      {/* Pending invites banner */}
+      <PendingInvitesBanner meetings={meetings} myId={myId} />
 
       {/* Body: week grid + upcoming sidebar */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>

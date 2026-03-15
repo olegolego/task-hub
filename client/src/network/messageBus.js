@@ -198,6 +198,10 @@ export function initMessageBus() {
         if (msg.name) useFilesStore.getState().addFolder(msg.name)
         break
 
+      case 'files:folder_deleted':
+        if (msg.name) useFilesStore.getState().removeFolder(msg.name)
+        break
+
       // ── Group chat ───────────────────────────────────────────────────────────
       case 'group:message_received':
         if (msg.message) useGroupChatStore.getState().addMessage(msg.message)
