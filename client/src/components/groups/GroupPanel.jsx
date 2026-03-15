@@ -10,6 +10,7 @@ export default function GroupPanel() {
   const [newGroupName, setNewGroupName] = useState('')
   const [showJoin, setShowJoin] = useState(false)
   const [joinId, setJoinId] = useState('')
+  const [confirmLeave, setConfirmLeave] = useState(false)
 
   function handleCreateGroup(e) {
     e.preventDefault()
@@ -40,7 +41,7 @@ export default function GroupPanel() {
           display: 'flex', alignItems: 'center', gap: 8,
         }}>
           <button
-            onClick={() => setActiveGroupId(null)}
+            onClick={() => { setActiveGroupId(null); setConfirmLeave(false) }}
             style={{
               background: 'transparent', border: 'none', cursor: 'pointer',
               color: 'var(--text-secondary)', display: 'flex', alignItems: 'center',
@@ -59,18 +60,44 @@ export default function GroupPanel() {
           <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>
             {group?.name ?? 'Group'}
           </span>
-          <button
-            onClick={() => leaveGroup(activeGroupId)}
-            title="Leave group"
-            style={{
-              marginLeft: 'auto', background: 'transparent', border: 'none',
-              cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 11,
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.color = '#ef476f'}
-            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
-          >
-            Leave
-          </button>
+          {confirmLeave ? (
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Leave group?</span>
+              <button
+                onClick={() => { leaveGroup(activeGroupId); setConfirmLeave(false) }}
+                style={{
+                  background: '#ef476f', border: 'none', borderRadius: 4,
+                  color: '#fff', fontSize: 11, fontWeight: 600,
+                  padding: '3px 8px', cursor: 'pointer',
+                }}
+              >
+                Yes, leave
+              </button>
+              <button
+                onClick={() => setConfirmLeave(false)}
+                style={{
+                  background: 'transparent', border: '1px solid rgba(255,255,255,0.12)',
+                  borderRadius: 4, color: 'var(--text-secondary)', fontSize: 11,
+                  padding: '3px 8px', cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmLeave(true)}
+              title="Leave group"
+              style={{
+                marginLeft: 'auto', background: 'transparent', border: 'none',
+                cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 11,
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.color = '#ef476f'}
+              onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
+            >
+              Leave
+            </button>
+          )}
         </div>
 
         <TaskInput groupId={activeGroupId} />
