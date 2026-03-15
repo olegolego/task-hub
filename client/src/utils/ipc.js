@@ -23,7 +23,16 @@ export const ipc = {
 
   // Direct messages
   sendDM: (toUserId, text) => api()?.sendDM(toUserId, text) ?? Promise.resolve({ ok: false }),
+  editDM: (dmId, newText, toUserId) => api()?.editDM(dmId, newText, toUserId) ?? Promise.resolve({ ok: false }),
   loadDMHistory: (withUserId, limit) => api()?.loadDMHistory(withUserId, limit) ?? Promise.resolve(false),
+
+  // File sharing (E2E encrypted DMs)
+  sendFileDM: (toUserId) => api()?.sendFileDM(toUserId) ?? Promise.resolve({ ok: false }),
+  downloadFileDM: (args) => api()?.downloadFileDM(args) ?? Promise.resolve({ ok: false }),
+
+  // Company files (shared)
+  uploadCompanyFile: (folder) => api()?.uploadCompanyFile(folder) ?? Promise.resolve({ ok: false }),
+  downloadCompanyFile: (args) => api()?.downloadCompanyFile(args) ?? Promise.resolve({ ok: false }),
 
   // Subscriptions (return cleanup functions)
   onMessage: (handler) => api()?.onMessage(handler) ?? (() => {}),

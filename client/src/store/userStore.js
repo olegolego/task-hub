@@ -17,6 +17,10 @@ export const useUserStore = create((set, get) => ({
     pendingUsers: s.pendingUsers.filter(u => u.id !== userId),
   })),
 
+  addUser: (user) => set((s) => ({
+    users: s.users.some(u => u.id === user.id) ? s.users : [...s.users, user],
+  })),
+
   setUserOnline: (userId) => set((s) => ({
     onlineIds: s.onlineIds.includes(userId) ? s.onlineIds : [...s.onlineIds, userId],
   })),

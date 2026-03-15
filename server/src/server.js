@@ -1,7 +1,9 @@
 const http = require('http')
 const { WebSocketServer } = require('ws')
+const path = require('path')
+const fs = require('fs')
 const database = require('./db/database')
-const { initDb } = database
+const { initDb, getDataDir } = database
 const { moduleRegistry } = require('./modules/moduleRegistry')
 const { handleAuth, verifyMessage } = require('./auth/challenge')
 const { MESSAGE_TYPES } = require('@task-hub/shared')
@@ -18,7 +20,102 @@ function createServer() {
   const db = database.db
   moduleRegistry.loadAll(db)
 
-  const httpServer = http.createServer()
+  const uploadsDir = path.join(getDataDir(), 'uploads')
+  const companyFilesDir = path.join(getDataDir(), 'company-files')
+  if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true })
+  if (!fs.existsSync(companyFilesDir)) fs.mkdirSync(companyFilesDir, { recursive: true })
+
+  const httpServer = http.createServer((req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    res.setHeader('Access-Control-Allow-Headers', 'X-User-Id, Content-Type')
+
+    if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return }
+
+    // POST /upload — receive encrypted file blob
+    if (req.method === 'POST' && req.url?.startsWith('/upload')) {
+      const userId = req.headers['x-user-id']
+      const user = userId && db.prepare("SELECT id FROM users WHERE id = ? AND status = 'active'").get(userId)
+      if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return }
+
+      const params = new URL(req.url, 'http://localhost').searchParams
+      const fileName = params.get('name') || 'file'
+      const mimeType = params.get('mime') || 'application/octet-stream'
+      const fileSize = parseInt(params.get('size') || '0', 10)
+
+      const chunks = []
+      req.on('data', (c) => chunks.push(c))
+      req.on('end', () => {
+        const buf = Buffer.concat(chunks)
+        const fileId = uuidv4()
+        const storedPath = path.join(uploadsDir, fileId)
+        fs.writeFileSync(storedPath, buf)
+        db.prepare('INSERT INTO files (id, original_name, size, mime_type, stored_path, uploaded_by) VALUES (?, ?, ?, ?, ?, ?)').run(fileId, fileName, fileSize || buf.length, mimeType, storedPath, userId)
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ fileId }))
+      })
+      req.on('error', () => { res.writeHead(500); res.end() })
+      return
+    }
+
+    // GET /files/:id — serve encrypted file blob
+    const fileMatch = req.url?.match(/^\/files\/([a-f0-9-]+)$/)
+    if (req.method === 'GET' && fileMatch) {
+      const fileId = fileMatch[1]
+      const file = db.prepare('SELECT * FROM files WHERE id = ?').get(fileId)
+      if (!file || !fs.existsSync(file.stored_path)) { res.writeHead(404); res.end(); return }
+      res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': fs.statSync(file.stored_path).size })
+      fs.createReadStream(file.stored_path).pipe(res)
+      return
+    }
+
+    // POST /company-upload — upload a shared company file (plaintext, no E2E encryption)
+    if (req.method === 'POST' && req.url?.startsWith('/company-upload')) {
+      const userId = req.headers['x-user-id']
+      const user = userId && db.prepare("SELECT id FROM users WHERE id = ? AND status = 'active'").get(userId)
+      if (!user) { res.writeHead(401); res.end(); return }
+
+      const params = new URL(req.url, 'http://localhost').searchParams
+      const fileName = params.get('name') || 'file'
+      const mimeType = params.get('mime') || 'application/octet-stream'
+      const fileSize = parseInt(params.get('size') || '0', 10)
+      const folder = params.get('folder') || 'General'
+
+      const chunks = []
+      req.on('data', (c) => chunks.push(c))
+      req.on('end', () => {
+        const buf = Buffer.concat(chunks)
+        const fileId = uuidv4()
+        const storedPath = path.join(companyFilesDir, fileId)
+        fs.writeFileSync(storedPath, buf)
+        const uploader = db.prepare('SELECT display_name, avatar_color FROM users WHERE id = ?').get(userId)
+        db.prepare('INSERT INTO company_files (id, name, size, mime_type, folder, stored_path, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?)').run(fileId, fileName, fileSize || buf.length, mimeType, folder, storedPath, userId)
+        const fileRecord = { id: fileId, name: fileName, size: fileSize || buf.length, mimeType, folder, createdAt: new Date().toISOString(), uploaderName: uploader?.display_name, uploaderColor: uploader?.avatar_color }
+        // Broadcast to all clients
+        const broadcastMsg = JSON.stringify({ type: 'files:uploaded', file: fileRecord })
+        for (const [ws] of clients) { if (ws.readyState === 1) ws.send(broadcastMsg) }
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ fileId, file: fileRecord }))
+      })
+      req.on('error', () => { res.writeHead(500); res.end() })
+      return
+    }
+
+    // GET /company-files/:id — serve company file
+    const companyFileMatch = req.url?.match(/^\/company-files\/([a-f0-9-]+)$/)
+    if (req.method === 'GET' && companyFileMatch) {
+      const file = db.prepare('SELECT * FROM company_files WHERE id = ?').get(companyFileMatch[1])
+      if (!file || !fs.existsSync(file.stored_path)) { res.writeHead(404); res.end(); return }
+      res.writeHead(200, {
+        'Content-Type': file.mime_type || 'application/octet-stream',
+        'Content-Disposition': `attachment; filename="${encodeURIComponent(file.name)}"`,
+        'Content-Length': fs.statSync(file.stored_path).size,
+      })
+      fs.createReadStream(file.stored_path).pipe(res)
+      return
+    }
+
+    res.writeHead(404); res.end()
+  })
   const wss = new WebSocketServer({ server: httpServer })
 
   wss.on('connection', (ws, req) => {
@@ -107,7 +204,8 @@ function createServer() {
                 break
               }
             }
-            broadcast({ type: MESSAGE_TYPES.USER_APPROVED, userId: targetId })
+            const approvedUser = database.db.prepare('SELECT id, display_name, avatar_color, role, enc_public_key FROM users WHERE id = ?').get(targetId)
+            broadcast({ type: MESSAGE_TYPES.USER_APPROVED, userId: targetId, user: approvedUser })
           }
           return
         }
@@ -209,9 +307,31 @@ function sendInitialState(ws, user) {
     ORDER BY vote_count DESC, i.created_at DESC
   `).all(user.id)
 
+  // Pending group invites for this user (they were invited and haven't responded)
+  const pendingInvites = database.db.prepare(`
+    SELECT gi.id, gi.group_id, gi.from_user_id, gi.type, gi.created_at,
+           g.name as group_name, g.color as group_color,
+           u.display_name as from_name
+    FROM group_invites gi
+    JOIN groups g ON g.id = gi.group_id
+    JOIN users u ON u.id = gi.from_user_id
+    WHERE gi.to_user_id = ? AND gi.status = 'pending'
+  `).all(user.id)
+
+  // Pending join requests for groups where this user is admin
+  const pendingJoinRequests = database.db.prepare(`
+    SELECT gi.id, gi.group_id, gi.to_user_id, gi.created_at,
+           g.name as group_name, u.display_name as requester_name, u.avatar_color as requester_color
+    FROM group_invites gi
+    JOIN groups g ON g.id = gi.group_id
+    JOIN users u ON u.id = gi.to_user_id
+    WHERE gi.type = 'join_request' AND gi.status = 'pending'
+      AND gi.group_id IN (SELECT group_id FROM group_members WHERE user_id = ? AND role = 'admin')
+  `).all(user.id)
+
   ws.send(JSON.stringify({
     type: MESSAGE_TYPES.SYNC_RESPONSE,
-    data: { tasks, groups, users, onlineUsers, ideas, pendingUsers },
+    data: { tasks, groups, users, onlineUsers, ideas, pendingUsers, pendingInvites, pendingJoinRequests },
   }))
 }
 

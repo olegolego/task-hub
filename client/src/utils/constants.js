@@ -36,4 +36,6 @@ export const NAV_PANELS = {
   GROUPS: 'groups',
   PEOPLE: 'people',
   MESSAGES: 'messages',
+  FILES: 'files',
+  CALENDAR: 'calendar',
 }

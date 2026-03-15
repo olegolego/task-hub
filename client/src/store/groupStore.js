@@ -6,9 +6,42 @@ export const useGroupStore = create((set, get) => ({
   activeGroupId: null,
   // groupId → [{ id, display_name, avatar_color, role }]
   membersByGroup: {},
+  // Invites this user received (must accept/decline)
+  pendingInvites: [],
+  // Join requests pending admin approval: { inviteId, groupId, groupName, requesterId, requesterName, requesterColor }[]
+  pendingJoinRequests: [],
 
   setGroups: (groups) => set({ groups }),
   setActiveGroupId: (id) => set({ activeGroupId: id }),
+
+  setPendingInvites: (pendingInvites) => set({ pendingInvites }),
+  setPendingJoinRequests: (pendingJoinRequests) => set({ pendingJoinRequests }),
+
+  addPendingInvite: (invite) => set((s) => ({
+    pendingInvites: s.pendingInvites.some(i => i.inviteId === invite.inviteId) ? s.pendingInvites : [...s.pendingInvites, invite],
+  })),
+
+  removePendingInvite: (inviteId) => set((s) => ({
+    pendingInvites: s.pendingInvites.filter(i => i.inviteId !== inviteId),
+  })),
+
+  addPendingJoinRequest: (req) => set((s) => ({
+    pendingJoinRequests: s.pendingJoinRequests.some(r => r.inviteId === req.inviteId) ? s.pendingJoinRequests : [...s.pendingJoinRequests, req],
+  })),
+
+  removePendingJoinRequest: (inviteId) => set((s) => ({
+    pendingJoinRequests: s.pendingJoinRequests.filter(r => r.inviteId !== inviteId),
+  })),
+
+  respondToInvite: (inviteId, accept) => {
+    ipc.sendMessage({ type: 'group:invite_respond', payload: { inviteId, accept } })
+    set((s) => ({ pendingInvites: s.pendingInvites.filter(i => i.inviteId !== inviteId) }))
+  },
+
+  respondToJoinRequest: (inviteId, accept) => {
+    ipc.sendMessage({ type: 'group:join_respond', payload: { inviteId, accept } })
+    set((s) => ({ pendingJoinRequests: s.pendingJoinRequests.filter(r => r.inviteId !== inviteId) }))
+  },
 
   addGroupFromServer: (group) => set((s) => ({
     groups: [group, ...s.groups.filter(g => g.id !== group.id)],

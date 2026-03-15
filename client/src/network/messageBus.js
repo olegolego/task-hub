@@ -5,6 +5,9 @@ import { useGroupStore } from '../store/groupStore'
 import { useUserStore } from '../store/userStore'
 import { useConnectionStore } from '../store/connectionStore'
 import { useMessageStore } from '../store/messageStore'
+import { useFilesStore } from '../store/filesStore'
+import { useGroupChatStore } from '../store/groupChatStore'
+import { useMeetingsStore } from '../store/meetingsStore'
 
 /**
  * Subscribes to IPC message and state events and routes them to the appropriate stores.
@@ -26,6 +29,8 @@ export function initMessageBus() {
           useTaskStore.getState().setTasks(data.tasks || [])
           useIdeaStore.getState().setIdeas(data.ideas || [])
           useGroupStore.getState().setGroups(data.groups || [])
+          useGroupStore.getState().setPendingInvites(data.pendingInvites || [])
+          useGroupStore.getState().setPendingJoinRequests(data.pendingJoinRequests || [])
           useUserStore.getState().setUsers(data.users || [])
           useUserStore.getState().setOnlineUsers(data.onlineUsers || [])
           useUserStore.getState().setPendingUsers(data.pendingUsers || [])
@@ -59,7 +64,11 @@ export function initMessageBus() {
         break
 
       case 'idea:commented':
-        // Future: update comment count on idea
+        useIdeaStore.getState().addComment(msg.comment, msg.commentCount)
+        break
+
+      case 'idea:comments_response':
+        useIdeaStore.getState().setComments(msg.ideaId, msg.comments)
         break
 
       // ── Groups ──────────────────────────────────────────────────────────────
@@ -77,6 +86,35 @@ export function initMessageBus() {
 
       case 'group:invited':
         useGroupStore.getState().handleInvited(msg)
+        break
+
+      // Someone invited us to a group — show accept/decline prompt
+      case 'group:invite_received':
+        useGroupStore.getState().addPendingInvite({
+          inviteId: msg.inviteId,
+          groupId: msg.groupId,
+          groupName: msg.groupName,
+          groupColor: msg.groupColor,
+          fromId: msg.fromId,
+          fromName: msg.fromName,
+        })
+        break
+
+      // Someone requested to join a group we admin — show approve/deny
+      case 'group:join_requested':
+        useGroupStore.getState().addPendingJoinRequest({
+          inviteId: msg.inviteId,
+          groupId: msg.groupId,
+          groupName: msg.groupName,
+          requesterId: msg.requesterId,
+          requesterName: msg.requesterName,
+          requesterColor: msg.requesterColor,
+        })
+        break
+
+      // Admin resolved a join request
+      case 'group:join_request_resolved':
+        useGroupStore.getState().removePendingJoinRequest(msg.inviteId)
         break
 
       case 'group:members':
@@ -111,8 +149,9 @@ export function initMessageBus() {
 
       case 'user:approved':
         if (msg.userId) {
-          // Remove from pending list; they'll appear in the online list via user:online
+          // Remove from pending list and add to the active users list
           useUserStore.getState().removePendingUser(msg.userId)
+          if (msg.user) useUserStore.getState().addUser(msg.user)
         } else {
           // This message was sent to the approved user themselves (no userId field)
           useConnectionStore.getState().setMyStatus('active')
@@ -128,6 +167,61 @@ export function initMessageBus() {
         if (msg.withUserId && msg.messages) {
           useMessageStore.getState().setHistory(msg.withUserId, msg.messages)
         }
+        break
+
+      // ── DM edit ─────────────────────────────────────────────────────────────
+      case 'dm:edited':
+        if (msg.dmId && msg.text !== undefined) useMessageStore.getState().markEdited(msg.dmId, msg.text)
+        break
+
+      // ── DM delete ───────────────────────────────────────────────────────────
+      case 'dm:deleted':
+        useMessageStore.getState().markDeleted(msg.dmId)
+        break
+
+      // ── Company files ────────────────────────────────────────────────────────
+      case 'files:list_response':
+        useFilesStore.getState().setFiles(msg.files || [])
+        useFilesStore.getState().setFolders(msg.folders || [])
+        useFilesStore.setState({ loading: false })
+        break
+
+      case 'files:uploaded':
+        if (msg.file) useFilesStore.getState().addFile(msg.file)
+        break
+
+      case 'files:deleted':
+        useFilesStore.getState().removeFile(msg.fileId)
+        break
+
+      case 'files:folder_created':
+        if (msg.name) useFilesStore.getState().addFolder(msg.name)
+        break
+
+      // ── Group chat ───────────────────────────────────────────────────────────
+      case 'group:message_received':
+        if (msg.message) useGroupChatStore.getState().addMessage(msg.message)
+        break
+
+      case 'group:history_response':
+        if (msg.groupId && msg.messages) useGroupChatStore.getState().setHistory(msg.groupId, msg.messages)
+        break
+
+      // ── Meetings ─────────────────────────────────────────────────────────────
+      case 'meeting:list_response':
+        useMeetingsStore.getState().setMeetings(msg.meetings)
+        break
+
+      case 'meeting:created':
+        useMeetingsStore.getState().addMeeting(msg.meeting)
+        break
+
+      case 'meeting:updated':
+        useMeetingsStore.getState().updateMeeting(msg.meeting)
+        break
+
+      case 'meeting:deleted':
+        useMeetingsStore.getState().removeMeeting(msg.meetingId)
         break
 
       // ── Errors ──────────────────────────────────────────────────────────────

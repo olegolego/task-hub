@@ -36,7 +36,16 @@ contextBridge.exposeInMainWorld('api', {
 
   // Direct messages (E2E encrypted)
   sendDM: (toUserId, text) => ipcRenderer.invoke('dm:send', { toUserId, text }),
+  editDM: (dmId, newText, toUserId) => ipcRenderer.invoke('dm:edit', { dmId, newText, toUserId }),
   loadDMHistory: (withUserId, limit) => ipcRenderer.invoke('dm:history', { withUserId, limit }),
+
+  // File sharing (E2E encrypted — server never sees plaintext)
+  sendFileDM: (toUserId) => ipcRenderer.invoke('file:sendDM', { toUserId }),
+  downloadFileDM: (args) => ipcRenderer.invoke('file:downloadDM', args),
+
+  // Company files (shared, not E2E encrypted)
+  uploadCompanyFile: (folder) => ipcRenderer.invoke('company-file:upload', { folder }),
+  downloadCompanyFile: (args) => ipcRenderer.invoke('company-file:download', args),
 
   // Focus input (sent from tray)
   onFocusInput: (handler) => {

@@ -4,7 +4,7 @@ const path = require('path')
 const os = require('os')
 const fs = require('fs')
 
-const KEY_DIR = path.join(os.homedir(), '.taskmanager')
+const KEY_DIR = process.env.TASKMANAGER_CONFIG_DIR || path.join(os.homedir(), '.taskmanager')
 const PRIVATE_KEY_PATH = path.join(KEY_DIR, 'id_ed25519')
 const PUBLIC_KEY_PATH = path.join(KEY_DIR, 'id_ed25519.pub')
 const ENC_PRIVATE_KEY_PATH = path.join(KEY_DIR, 'id_x25519')
@@ -121,6 +121,54 @@ function decryptDM(encryptedB64, nonceB64, otherPartyEncPubKeyB64, myEncSecKeyB6
   } catch { return null }
 }
 
+// ── File encryption (nacl.secretbox + key wrapped with nacl.box) ──────────────
+// Files are encrypted symmetrically with a random 32-byte key (XSalsa20-Poly1305).
+// That key is then sealed with nacl.box (ECDH) so only the recipient can open it.
+// The server stores only the opaque encrypted blob — it is server-blind.
+
+function encryptFile(fileBuffer, recipientEncPubKeyB64, myEncSecKeyB64) {
+  const fileKey = nacl.randomBytes(nacl.secretbox.keyLength)   // random 256-bit symmetric key
+  const fileNonce = nacl.randomBytes(nacl.secretbox.nonceLength) // random 192-bit nonce
+  const ciphertext = nacl.secretbox(new Uint8Array(fileBuffer), fileNonce, fileKey)
+
+  // Store nonce prepended to ciphertext so the recipient can find it
+  const blob = Buffer.concat([Buffer.from(fileNonce), Buffer.from(ciphertext)])
+
+  // Seal the file key for the recipient with nacl.box (ECDH shared secret)
+  const keyNonce = nacl.randomBytes(nacl.box.nonceLength)
+  const encFileKey = nacl.box(fileKey, keyNonce, decodeBase64(recipientEncPubKeyB64), decodeBase64(myEncSecKeyB64))
+
+  return {
+    blob,                               // encrypted file bytes (nonce prepended)
+    encFileKey: encodeBase64(encFileKey),
+    fileKeyNonce: encodeBase64(keyNonce),
+  }
+}
+
+// Also seal the file key for ourselves so we can re-read our own sent files
+function encryptFileForSelf(fileBuffer, myEncPubKeyB64, myEncSecKeyB64) {
+  return encryptFile(fileBuffer, myEncPubKeyB64, myEncSecKeyB64)
+}
+
+function decryptFile(blobBuffer, encFileKeyB64, fileKeyNonceB64, otherPartyEncPubKeyB64, myEncSecKeyB64) {
+  try {
+    const fileKey = nacl.box.open(
+      decodeBase64(encFileKeyB64),
+      decodeBase64(fileKeyNonceB64),
+      decodeBase64(otherPartyEncPubKeyB64),
+      decodeBase64(myEncSecKeyB64),
+    )
+    if (!fileKey) return null
+
+    const blobBytes = new Uint8Array(blobBuffer)
+    const fileNonce = blobBytes.slice(0, nacl.secretbox.nonceLength)
+    const ciphertext = blobBytes.slice(nacl.secretbox.nonceLength)
+    const plaintext = nacl.secretbox.open(ciphertext, fileNonce, fileKey)
+    if (!plaintext) return null
+    return Buffer.from(plaintext)
+  } catch { return null }
+}
+
 function loadConfig() {
   if (!fs.existsSync(CONFIG_PATH)) return {}
   try { return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')) } catch { return {} }
@@ -132,4 +180,4 @@ function saveConfig(config) {
   fs.writeFileSync(CONFIG_PATH, JSON.stringify({ ...current, ...config }, null, 2))
 }
 
-module.exports = { getOrCreateKeypair, getOrCreateEncryptionKeypair, encryptDM, decryptDM, signChallenge, signMessage, loadConfig, saveConfig, KEY_DIR }
+module.exports = { getOrCreateKeypair, getOrCreateEncryptionKeypair, encryptDM, decryptDM, encryptFile, encryptFileForSelf, decryptFile, signChallenge, signMessage, loadConfig, saveConfig, KEY_DIR }

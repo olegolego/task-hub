@@ -7,7 +7,8 @@
     "server": "node server/src/index.js",
     "client": "npm run dev --prefix client",
     "install:server": "npm install --prefix server",
-    "install:all": "npm install && npm run install:server"
+    "install:all": "npm install && npm run install:server",
+    "dev:user2": "TASKMANAGER_CONFIG_DIR=$HOME/.taskmanager-user2 npm run dev --prefix client"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"

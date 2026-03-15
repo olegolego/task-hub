@@ -2,7 +2,7 @@ const { v4: uuidv4 } = require('uuid')
 
 const ideasModule = {
   name: 'ideas',
-  messageTypes: ['idea:post', 'idea:vote', 'idea:comment', 'idea:status'],
+  messageTypes: ['idea:post', 'idea:vote', 'idea:comment', 'idea:comments_load', 'idea:status'],
 
   init(db) {},
 
@@ -57,10 +57,30 @@ const ideasModule = {
 
       db.prepare('INSERT INTO idea_comments (id, idea_id, user_id, body) VALUES (@id, @idea_id, @user_id, @body)').run(comment)
 
-      const outMsg = { type: 'idea:commented', comment: { ...comment, displayName: clientInfo.displayName } }
+      // Increment comment_count on idea in sync
+      const commentCount = db.prepare('SELECT COUNT(*) as c FROM idea_comments WHERE idea_id = ?').get(payload.ideaId).c
+      const outMsg = {
+        type: 'idea:commented',
+        comment: { ...comment, displayName: clientInfo.displayName, avatarColor: clientInfo.avatarColor, created_at: new Date().toISOString() },
+        commentCount,
+      }
       const idea = db.prepare('SELECT group_id FROM ideas WHERE id = ?').get(payload.ideaId)
       if (idea?.group_id) broadcastToGroup(outMsg, idea.group_id)
       else broadcast(outMsg)
+    }
+
+    else if (type === 'idea:comments_load') {
+      const { ideaId } = payload || {}
+      if (!ideaId) return
+      const comments = db.prepare(`
+        SELECT ic.id, ic.idea_id, ic.user_id, ic.body, ic.created_at,
+               u.display_name as displayName, u.avatar_color as avatarColor
+        FROM idea_comments ic
+        JOIN users u ON u.id = ic.user_id
+        WHERE ic.idea_id = ?
+        ORDER BY ic.created_at ASC
+      `).all(ideaId)
+      ws.send(JSON.stringify({ type: 'idea:comments_response', ideaId, comments }))
     }
 
     else if (type === 'idea:status') {

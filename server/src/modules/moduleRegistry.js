@@ -3,8 +3,11 @@ const ideasModule = require('./ideas.module')
 const groupsModule = require('./groups.module')
 const presenceModule = require('./presence.module')
 const messagesModule = require('./messages.module')
+const companyFilesModule = require('./companyFiles.module')
+const groupChatModule = require('./groupChat.module')
+const meetingsModule = require('./meetings.module')
 
-const MODULES = [tasksModule, ideasModule, groupsModule, presenceModule, messagesModule]
+const MODULES = [tasksModule, ideasModule, groupsModule, presenceModule, messagesModule, companyFilesModule, groupChatModule, meetingsModule]
 
 const moduleRegistry = {
   loadAll(db) {

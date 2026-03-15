@@ -16,6 +16,10 @@ const MESSAGE_TYPES = {
   GROUP_JOIN: 'group:join',
   GROUP_LEAVE: 'group:leave',
   GROUP_INVITE: 'group:invite',
+  GROUP_INVITE_RECEIVED: 'group:invite_received',
+  GROUP_INVITE_RESPOND: 'group:invite_respond',
+  GROUP_JOIN_REQUESTED: 'group:join_requested',
+  GROUP_JOIN_RESPOND: 'group:join_respond',
   GROUP_INVITED: 'group:invited',
   GROUP_MEMBERS: 'group:members',
   // Presence

@@ -53,5 +53,29 @@ export const useMessageStore = create((set, get) => ({
     return ipc.sendDM(toUserId, text.trim())
   },
 
+  deleteMessage: (dmId) => {
+    ipc.sendMessage({ type: 'dm:delete', payload: { dmId } })
+  },
+
+  editMessage: (dmId, newText, toUserId) => {
+    return ipc.editDM(dmId, newText.trim(), toUserId)
+  },
+
+  markEdited: (dmId, newText) => set((s) => {
+    const newThreads = {}
+    for (const [uid, msgs] of Object.entries(s.threads)) {
+      newThreads[uid] = msgs.map(m => m.id === dmId ? { ...m, text: newText, editedAt: new Date().toISOString() } : m)
+    }
+    return { threads: newThreads }
+  }),
+
+  markDeleted: (dmId) => set((s) => {
+    const newThreads = {}
+    for (const [uid, msgs] of Object.entries(s.threads)) {
+      newThreads[uid] = msgs.map(m => m.id === dmId ? { ...m, deletedAt: new Date().toISOString() } : m)
+    }
+    return { threads: newThreads }
+  }),
+
   totalUnread: () => Object.values(get().unreadCounts).reduce((a, b) => a + b, 0),
 }))

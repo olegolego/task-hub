@@ -1,6 +1,8 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut } = require('electron')
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut, dialog } = require('electron')
 const path = require('path')
-const { getOrCreateKeypair, getOrCreateEncryptionKeypair, encryptDM, decryptDM, loadConfig, saveConfig } = require('./crypto')
+const http = require('http')
+const fs = require('fs')
+const { getOrCreateKeypair, getOrCreateEncryptionKeypair, encryptDM, decryptDM, encryptFile, decryptFile, loadConfig, saveConfig } = require('./crypto')
 const { createWsClient } = require('./wsClient')
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
@@ -157,6 +159,11 @@ function startWsClient(serverUrl, displayName) {
         lastAuthMessage = msg
       }
 
+      // Cache enc public key when a user is approved
+      if (msg.type === 'user:approved' && msg.user?.enc_public_key) {
+        encPubKeyCache.set(msg.user.id, msg.user.enc_public_key)
+      }
+
       // Cache enc public keys from sync response
       if (msg.type === 'sync:response' && msg.data?.users) {
         for (const u of msg.data.users) {
@@ -168,24 +175,14 @@ function startWsClient(serverUrl, displayName) {
       // Decrypt incoming DM before forwarding to renderer
       if (msg.type === 'dm:received' && msg.dm) {
         const dm = msg.dm
-        const otherUserId = dm.fromUserId === myUserId ? dm.toUserId : dm.fromUserId
-        const otherEncPubKey = encPubKeyCache.get(otherUserId)
-        const myEncKeypair = getOrCreateEncryptionKeypair()
-        if (otherEncPubKey && myEncKeypair) {
-          dm.text = decryptDM(dm.encrypted, dm.nonce, otherEncPubKey, myEncKeypair.secretKeyB64) ?? '[decryption failed]'
+        if (dm.fileId) {
+          // File DM — no text to decrypt, metadata is already plaintext
+          delete dm.encrypted
+          delete dm.nonce
         } else {
-          dm.text = '[missing encryption key]'
-        }
-        delete dm.encrypted
-        delete dm.nonce
-      }
-
-      // Decrypt DM history before forwarding
-      if (msg.type === 'dm:history_response' && msg.messages) {
-        const myEncKeypair = getOrCreateEncryptionKeypair()
-        for (const dm of msg.messages) {
           const otherUserId = dm.fromUserId === myUserId ? dm.toUserId : dm.fromUserId
           const otherEncPubKey = encPubKeyCache.get(otherUserId)
+          const myEncKeypair = getOrCreateEncryptionKeypair()
           if (otherEncPubKey && myEncKeypair) {
             dm.text = decryptDM(dm.encrypted, dm.nonce, otherEncPubKey, myEncKeypair.secretKeyB64) ?? '[decryption failed]'
           } else {
@@ -193,6 +190,39 @@ function startWsClient(serverUrl, displayName) {
           }
           delete dm.encrypted
           delete dm.nonce
+        }
+      }
+
+      // Decrypt edited DM before forwarding
+      if (msg.type === 'dm:edited' && msg.dmId) {
+        const otherUserId = msg.fromUserId === myUserId ? msg.toUserId : msg.fromUserId
+        const otherEncPubKey = encPubKeyCache.get(otherUserId)
+        const myEncKeypair = getOrCreateEncryptionKeypair()
+        if (otherEncPubKey && myEncKeypair && msg.encrypted && msg.nonce) {
+          msg.text = decryptDM(msg.encrypted, msg.nonce, otherEncPubKey, myEncKeypair.secretKeyB64) ?? '[decryption failed]'
+        }
+        delete msg.encrypted
+        delete msg.nonce
+      }
+
+      // Decrypt DM history before forwarding
+      if (msg.type === 'dm:history_response' && msg.messages) {
+        const myEncKeypair = getOrCreateEncryptionKeypair()
+        for (const dm of msg.messages) {
+          if (dm.fileId) {
+            delete dm.encrypted
+            delete dm.nonce
+          } else {
+            const otherUserId = dm.fromUserId === myUserId ? dm.toUserId : dm.fromUserId
+            const otherEncPubKey = encPubKeyCache.get(otherUserId)
+            if (otherEncPubKey && myEncKeypair) {
+              dm.text = decryptDM(dm.encrypted, dm.nonce, otherEncPubKey, myEncKeypair.secretKeyB64) ?? '[decryption failed]'
+            } else {
+              dm.text = '[missing encryption key]'
+            }
+            delete dm.encrypted
+            delete dm.nonce
+          }
         }
       }
 
@@ -337,9 +367,147 @@ ipcMain.handle('dm:send', (_, { toUserId, text }) => {
   return { ok: !!sent }
 })
 
+ipcMain.handle('dm:edit', (_, { dmId, newText, toUserId }) => {
+  const recipientEncPubKey = encPubKeyCache.get(toUserId)
+  if (!recipientEncPubKey) return { ok: false, error: 'No encryption key for recipient' }
+
+  const myEncKeypair = getOrCreateEncryptionKeypair()
+  const { encrypted, nonce } = encryptDM(newText, recipientEncPubKey, myEncKeypair.secretKeyB64)
+
+  const sent = wsClient?.send({
+    type: 'dm:edit',
+    payload: { dmId, encrypted, nonce },
+  })
+  return { ok: !!sent }
+})
+
 ipcMain.handle('dm:history', (_, { withUserId, limit }) => {
   return wsClient?.send({
     type: 'dm:history',
     payload: { withUserId, limit: limit ?? 50 },
   }) ?? false
 })
+
+// ── IPC: File sharing ──────────────────────────────────────────────────────────
+
+function getHttpBase() {
+  const config = loadConfig()
+  return (config.serverUrl || 'ws://localhost:8765').replace(/^ws/, 'http')
+}
+
+function httpPost(url, buffer, headers) {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url)
+    const req = http.request({
+      hostname: parsed.hostname,
+      port: parsed.port || 80,
+      path: parsed.pathname + parsed.search,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream', 'Content-Length': buffer.length, ...headers },
+    }, (res) => {
+      let data = ''
+      res.on('data', (c) => data += c)
+      res.on('end', () => { try { resolve(JSON.parse(data)) } catch { reject(new Error(data)) } })
+    })
+    req.on('error', reject)
+    req.write(buffer)
+    req.end()
+  })
+}
+
+function httpGet(url) {
+  return new Promise((resolve, reject) => {
+    http.get(url, (res) => {
+      const chunks = []
+      res.on('data', (c) => chunks.push(c))
+      res.on('end', () => resolve(Buffer.concat(chunks)))
+      res.on('error', reject)
+    }).on('error', reject)
+  })
+}
+
+// Renderer asks to pick a file, encrypt it, upload, and send as a DM
+ipcMain.handle('file:sendDM', async (_, { toUserId }) => {
+  const recipientEncPubKey = encPubKeyCache.get(toUserId)
+  if (!recipientEncPubKey) return { ok: false, error: 'No encryption key for recipient' }
+
+  const result = await dialog.showOpenDialog({ properties: ['openFile'] })
+  if (result.canceled || result.filePaths.length === 0) return { ok: false, canceled: true }
+
+  const filePath = result.filePaths[0]
+  const fileName = path.basename(filePath)
+  const fileBuffer = fs.readFileSync(filePath)
+  const mimeType = guessMime(fileName)
+
+  const myEncKeypair = getOrCreateEncryptionKeypair()
+  const { blob, encFileKey, fileKeyNonce } = encryptFile(fileBuffer, recipientEncPubKey, myEncKeypair.secretKeyB64)
+
+  const base = getHttpBase()
+  const uploadUrl = `${base}/upload?name=${encodeURIComponent(fileName)}&mime=${encodeURIComponent(mimeType)}&size=${fileBuffer.length}`
+  const { fileId } = await httpPost(uploadUrl, blob, { 'X-User-Id': myUserId })
+
+  const sent = wsClient?.send({
+    type: 'dm:send',
+    payload: { toUserId, fileId, fileName, fileSize: fileBuffer.length, mimeType, encFileKey, fileKeyNonce },
+  })
+  return { ok: !!sent }
+})
+
+// Renderer asks to download and decrypt a file from a DM
+ipcMain.handle('file:downloadDM', async (_, { fileId, fileName, encFileKey, fileKeyNonce, fromUserId }) => {
+  const senderEncPubKey = encPubKeyCache.get(fromUserId)
+  if (!senderEncPubKey) return { ok: false, error: 'No encryption key for sender' }
+
+  const saveResult = await dialog.showSaveDialog({ defaultPath: fileName })
+  if (saveResult.canceled) return { ok: false, canceled: true }
+
+  const base = getHttpBase()
+  const blob = await httpGet(`${base}/files/${fileId}`)
+
+  const myEncKeypair = getOrCreateEncryptionKeypair()
+  const decrypted = decryptFile(blob, encFileKey, fileKeyNonce, senderEncPubKey, myEncKeypair.secretKeyB64)
+  if (!decrypted) return { ok: false, error: 'Decryption failed' }
+
+  fs.writeFileSync(saveResult.filePath, decrypted)
+  return { ok: true, savedTo: saveResult.filePath }
+})
+
+// ── IPC: Company Files ────────────────────────────────────────────────────────
+
+ipcMain.handle('company-file:upload', async (_, { folder }) => {
+  const result = await dialog.showOpenDialog({ properties: ['openFile'] })
+  if (result.canceled || result.filePaths.length === 0) return { ok: false, canceled: true }
+
+  const filePath = result.filePaths[0]
+  const fileName = path.basename(filePath)
+  const fileBuffer = fs.readFileSync(filePath)
+  const mimeType = guessMime(fileName)
+
+  const base = getHttpBase()
+  const uploadUrl = `${base}/company-upload?name=${encodeURIComponent(fileName)}&mime=${encodeURIComponent(mimeType)}&size=${fileBuffer.length}&folder=${encodeURIComponent(folder || 'General')}`
+  const result2 = await httpPost(uploadUrl, fileBuffer, { 'X-User-Id': myUserId })
+  return { ok: true, ...result2 }
+})
+
+ipcMain.handle('company-file:download', async (_, { fileId, fileName }) => {
+  const saveResult = await dialog.showSaveDialog({ defaultPath: fileName })
+  if (saveResult.canceled) return { ok: false, canceled: true }
+
+  const base = getHttpBase()
+  const buf = await httpGet(`${base}/company-files/${fileId}`)
+  fs.writeFileSync(saveResult.filePath, buf)
+  return { ok: true }
+})
+
+function guessMime(fileName) {
+  const ext = path.extname(fileName).toLowerCase()
+  const map = {
+    '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
+    '.pdf': 'application/pdf', '.zip': 'application/zip',
+    '.mp4': 'video/mp4', '.mp3': 'audio/mpeg',
+    '.txt': 'text/plain', '.md': 'text/markdown',
+    '.json': 'application/json', '.csv': 'text/csv',
+  }
+  return map[ext] || 'application/octet-stream'
+}

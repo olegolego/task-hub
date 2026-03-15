@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 export const useIdeaStore = create((set, get) => ({
   ideas: [],
+  commentsByIdea: {}, // ideaId → Comment[]
 
   setIdeas: (ideas) => set({ ideas }),
 
@@ -48,6 +49,28 @@ export const useIdeaStore = create((set, get) => ({
       ideas: s.ideas.map(i => i.id === ideaId ? { ...i, status } : i),
     }))
     ipc.sendMessage({ type: 'idea:status', payload: { ideaId, status } })
+  },
+
+  setComments: (ideaId, comments) => set((s) => ({
+    commentsByIdea: { ...s.commentsByIdea, [ideaId]: comments },
+  })),
+
+  addComment: (comment, commentCount) => set((s) => {
+    const existing = s.commentsByIdea[comment.idea_id] ?? []
+    const deduped = existing.some(c => c.id === comment.id) ? existing : [...existing, comment]
+    return {
+      commentsByIdea: { ...s.commentsByIdea, [comment.idea_id]: deduped },
+      ideas: s.ideas.map(i => i.id === comment.idea_id ? { ...i, comment_count: commentCount ?? (i.comment_count || 0) + 1 } : i),
+    }
+  }),
+
+  loadComments: (ideaId) => {
+    ipc.sendMessage({ type: 'idea:comments_load', payload: { ideaId } })
+  },
+
+  postComment: (ideaId, body) => {
+    if (!body.trim()) return
+    ipc.sendMessage({ type: 'idea:comment', payload: { ideaId, body } })
   },
 
   getSortedIdeas: (groupId = null) => {

@@ -8,6 +8,8 @@ import IdeasBoard from './components/ideas/IdeasBoard'
 import GroupPanel from './components/groups/GroupPanel'
 import PeoplePanel from './components/people/PeoplePanel'
 import MessagesPanel from './components/messages/MessagesPanel'
+import FilesPanel from './components/files/FilesPanel'
+import CalendarPanel from './components/calendar/CalendarPanel'
 import SetupScreen from './components/setup/SetupScreen'
 import { useTaskStore } from './store/taskStore'
 import { useShortcuts } from './hooks/useShortcuts'
@@ -22,6 +24,8 @@ const PANEL_TITLES = {
   [NAV_PANELS.GROUPS]: 'GROUPS',
   [NAV_PANELS.PEOPLE]: 'PEOPLE',
   [NAV_PANELS.MESSAGES]: 'MESSAGES',
+  [NAV_PANELS.FILES]: 'FILES',
+  [NAV_PANELS.CALENDAR]: 'CALENDAR',
 }
 
 export default function App() {
@@ -102,6 +106,8 @@ export default function App() {
           {activePanel === NAV_PANELS.GROUPS && <GroupPanel />}
           {activePanel === NAV_PANELS.PEOPLE && <PeoplePanel />}
           {activePanel === NAV_PANELS.MESSAGES && <MessagesPanel />}
+          {activePanel === NAV_PANELS.FILES && <FilesPanel />}
+          {activePanel === NAV_PANELS.CALENDAR && <CalendarPanel />}
         </div>
       </div>
 
