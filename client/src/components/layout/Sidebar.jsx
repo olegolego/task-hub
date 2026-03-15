@@ -64,6 +64,14 @@ const CalendarIcon = () => (
   </svg>
 )
 
+const LLMIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+    <line x1="12" y1="17" x2="12.01" y2="17" />
+  </svg>
+)
+
 const NAV_ITEMS = [
   { id: NAV_PANELS.TASKS, title: 'Tasks', icon: TasksIcon },
   { id: NAV_PANELS.IDEAS, title: 'Ideas', icon: IdeasIcon },
@@ -72,6 +80,7 @@ const NAV_ITEMS = [
   { id: NAV_PANELS.MESSAGES, title: 'Messages', icon: MessagesIcon },
   { id: NAV_PANELS.FILES, title: 'Files', icon: FilesIcon },
   { id: NAV_PANELS.CALENDAR, title: 'Calendar', icon: CalendarIcon },
+  { id: NAV_PANELS.LLM, title: 'AI Assistant', icon: LLMIcon },
 ]
 
 export default function Sidebar({ activePanel, onPanelChange }) {

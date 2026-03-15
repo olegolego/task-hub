@@ -8,6 +8,7 @@ import { useMessageStore } from '../store/messageStore'
 import { useFilesStore } from '../store/filesStore'
 import { useGroupChatStore } from '../store/groupChatStore'
 import { useMeetingsStore } from '../store/meetingsStore'
+import { useLLMStore } from '../store/llmStore'
 
 /**
  * Subscribes to IPC message and state events and routes them to the appropriate stores.
@@ -226,6 +227,61 @@ export function initMessageBus() {
 
       case 'meeting:deleted':
         useMeetingsStore.getState().removeMeeting(msg.meetingId)
+        break
+
+      // ── LLM ──────────────────────────────────────────────────────────────────
+      case 'llm:status_response':
+        useLLMStore.getState().setStatus(msg.status, msg.model)
+        break
+
+      case 'llm:chat_created':
+        if (msg.chat) {
+          useLLMStore.getState().addChat(msg.chat)
+          useLLMStore.getState().selectChat(msg.chat.id)
+        }
+        break
+
+      case 'llm:chat_list_response':
+        useLLMStore.getState().setChats(msg.chats || [])
+        break
+
+      case 'llm:chat_history_response':
+        if (msg.chat && msg.messages) {
+          useLLMStore.setState({ loadingHistory: false })
+          useLLMStore.getState().setMessages(msg.chat.id, msg.messages)
+        }
+        break
+
+      case 'llm:thinking':
+        useLLMStore.getState().setThinking(true)
+        // If the chat was auto-created on server, update activeChatId
+        if (msg.chatId && !useLLMStore.getState().activeChatId) {
+          useLLMStore.setState({ activeChatId: msg.chatId })
+        }
+        break
+
+      case 'llm:chat_response': {
+        const llm = useLLMStore.getState()
+        llm.setThinking(false)
+        if (msg.chatId && msg.message) {
+          llm.addMessage(msg.chatId, msg.message)
+          // Ensure this chat is in the list (auto-created chats arrive here first)
+          if (!llm.chats.find(c => c.id === msg.chatId)) {
+            llm.loadChats()
+          }
+          if (!llm.activeChatId) {
+            useLLMStore.setState({ activeChatId: msg.chatId })
+          }
+        }
+        break
+      }
+
+      case 'llm:chat_deleted':
+        if (msg.chatId) useLLMStore.getState().removeChat(msg.chatId)
+        break
+
+      case 'llm:error':
+        useLLMStore.getState().setError(msg.error || 'Unknown LLM error')
         break
 
       // ── Errors ──────────────────────────────────────────────────────────────

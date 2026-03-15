@@ -38,4 +38,5 @@ export const NAV_PANELS = {
   MESSAGES: 'messages',
   FILES: 'files',
   CALENDAR: 'calendar',
+  LLM: 'llm',
 }

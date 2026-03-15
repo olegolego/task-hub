@@ -10,6 +10,7 @@ import PeoplePanel from './components/people/PeoplePanel'
 import MessagesPanel from './components/messages/MessagesPanel'
 import FilesPanel from './components/files/FilesPanel'
 import CalendarPanel from './components/calendar/CalendarPanel'
+import LLMPanel from './components/llm/LLMPanel'
 import SetupScreen from './components/setup/SetupScreen'
 import { useTaskStore } from './store/taskStore'
 import { useShortcuts } from './hooks/useShortcuts'
@@ -26,6 +27,7 @@ const PANEL_TITLES = {
   [NAV_PANELS.MESSAGES]: 'MESSAGES',
   [NAV_PANELS.FILES]: 'FILES',
   [NAV_PANELS.CALENDAR]: 'CALENDAR',
+  [NAV_PANELS.LLM]: 'AI ASSISTANT',
 }
 
 export default function App() {
@@ -108,6 +110,7 @@ export default function App() {
           {activePanel === NAV_PANELS.MESSAGES && <MessagesPanel />}
           {activePanel === NAV_PANELS.FILES && <FilesPanel />}
           {activePanel === NAV_PANELS.CALENDAR && <CalendarPanel />}
+          {activePanel === NAV_PANELS.LLM && <LLMPanel />}
         </div>
       </div>
 
