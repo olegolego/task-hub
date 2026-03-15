@@ -26,6 +26,8 @@ const MESSAGE_TYPES = {
   USER_ONLINE: 'user:online',
   USER_OFFLINE: 'user:offline',
   USER_STATUS: 'user:status',
+  USER_LIST: 'user:list',
+  USER_LIST_RESPONSE: 'user:list_response',
   // Approval flow
   USER_PENDING: 'user:pending',
   USER_JOIN_PENDING: 'user:join_pending',
@@ -36,6 +38,24 @@ const MESSAGE_TYPES = {
   DM_RECEIVED: 'dm:received',
   DM_HISTORY: 'dm:history',
   DM_HISTORY_RESPONSE: 'dm:history_response',
+  // LLM one-shot
+  LLM_ASK: 'llm:ask',
+  LLM_RESPONSE: 'llm:response',
+  LLM_THINKING: 'llm:thinking',
+  LLM_ERROR: 'llm:error',
+  LLM_STATUS: 'llm:status',
+  LLM_STATUS_RESPONSE: 'llm:status_response',
+  // LLM chatbot
+  LLM_CHAT: 'llm:chat',
+  LLM_CHAT_RESPONSE: 'llm:chat_response',
+  LLM_CHAT_NEW: 'llm:chat_new',
+  LLM_CHAT_CREATED: 'llm:chat_created',
+  LLM_CHAT_LIST: 'llm:chat_list',
+  LLM_CHAT_LIST_RESPONSE: 'llm:chat_list_response',
+  LLM_CHAT_HISTORY: 'llm:chat_history',
+  LLM_CHAT_HISTORY_RESPONSE: 'llm:chat_history_response',
+  LLM_CHAT_DELETE: 'llm:chat_delete',
+  LLM_CHAT_DELETED: 'llm:chat_deleted',
   // System
   AUTH_CHALLENGE: 'auth:challenge',
   AUTH_RESPONSE: 'auth:response',
