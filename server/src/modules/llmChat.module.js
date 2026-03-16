@@ -35,10 +35,31 @@ const CONTEXT_KEYWORDS = {
   users:    /\b(user|users|team|member|members|people|person|who|colleague|everyone)\b/i,
 }
 
+// @mention aliases — user can type @tasks, @files, etc. to force include a context
+const MENTION_ALIASES = {
+  tasks: ['tasks', 'task'],
+  ideas: ['ideas', 'idea'],
+  files: ['files', 'file', 'docs', 'documents'],
+  messages: ['messages', 'message', 'chat'],
+  meetings: ['meetings', 'meeting', 'calendar', 'schedule'],
+  users: ['users', 'user', 'team', 'people'],
+}
+
+const AVAILABLE_CONTEXTS = Object.keys(CONTEXT_KEYWORDS)
+
 function detectContext(text) {
   const detected = new Set()
+  // Keyword-based auto-detection
   for (const [key, re] of Object.entries(CONTEXT_KEYWORDS)) {
     if (re.test(text)) detected.add(key)
+  }
+  // @mention overrides — @tasks, @files, @meetings, etc.
+  const mentions = text.match(/@(\w+)/g) || []
+  for (const mention of mentions) {
+    const word = mention.slice(1).toLowerCase()
+    for (const [key, aliases] of Object.entries(MENTION_ALIASES)) {
+      if (aliases.includes(word)) detected.add(key)
+    }
   }
   return detected
 }
@@ -121,7 +142,7 @@ function ctxMeetings(db, userId) {
             WHERE ma2.meeting_id = m.id AND ma2.status = 'accepted') as attendees
     FROM meetings m
     JOIN users u ON m.created_by = u.id
-    JOIN meeting_attendees ma ON ma.meeting_id = m.id AND ma.user_id = ?
+    LEFT JOIN meeting_attendees ma ON ma.meeting_id = m.id AND ma.user_id = ?
     WHERE m.end_time > ?
     ORDER BY m.start_time ASC
     LIMIT 20
@@ -212,6 +233,7 @@ async function callLLM(messages, maxTokens = 1024, temperature = 0.7) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ messages, max_tokens: maxTokens, temperature }),
+    signal: AbortSignal.timeout(300_000), // 5 min — first call compiles kernels
   })
   if (!res.ok) throw new Error(`LLM server error ${res.status}: ${await res.text()}`)
   return res.json()
@@ -222,7 +244,7 @@ async function callLLM(messages, maxTokens = 1024, temperature = 0.7) {
 // ---------------------------------------------------------------------------
 const llmChatModule = {
   name: 'llmChat',
-  messageTypes: ['llm:chat', 'llm:chat_new', 'llm:chat_list', 'llm:chat_history', 'llm:chat_delete', 'llm:status'],
+  messageTypes: ['llm:chat', 'llm:chat_new', 'llm:chat_list', 'llm:chat_history', 'llm:chat_delete', 'llm:chat_rename', 'llm:context_list', 'llm:status'],
 
   init(db) {
     db.exec(`
@@ -308,6 +330,32 @@ const llmChatModule = {
       }
       db.prepare('DELETE FROM llm_chats WHERE id = ?').run(chatId)
       ws.send(JSON.stringify({ type: 'llm:chat_deleted', chatId }))
+      return
+    }
+
+    // ---- llm:context_list -------------------------------------------------
+    if (type === 'llm:context_list') {
+      ws.send(JSON.stringify({
+        type: 'llm:context_list_response',
+        contexts: AVAILABLE_CONTEXTS.map(key => ({ key, label: key.charAt(0).toUpperCase() + key.slice(1) })),
+      }))
+      return
+    }
+
+    // ---- llm:chat_rename --------------------------------------------------
+    if (type === 'llm:chat_rename') {
+      const { chatId, title } = payload || {}
+      if (!chatId || !title?.trim()) {
+        ws.send(JSON.stringify({ type: 'llm:error', error: 'chatId and title are required' }))
+        return
+      }
+      const chat = db.prepare('SELECT id FROM llm_chats WHERE id = ? AND user_id = ?').get(chatId, clientInfo.id)
+      if (!chat) {
+        ws.send(JSON.stringify({ type: 'llm:error', error: 'Chat not found' }))
+        return
+      }
+      db.prepare('UPDATE llm_chats SET title = ? WHERE id = ?').run(title.trim(), chatId)
+      ws.send(JSON.stringify({ type: 'llm:chat_renamed', chatId, title: title.trim() }))
       return
     }
 

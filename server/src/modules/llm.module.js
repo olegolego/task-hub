@@ -104,6 +104,7 @@ async function callLLM(messages, maxTokens = 1024, temperature = 0.7) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ messages, max_tokens: maxTokens, temperature }),
+    signal: AbortSignal.timeout(300_000), // 5 min — first call compiles kernels
   })
   if (!res.ok) {
     const err = await res.text()

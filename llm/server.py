@@ -20,7 +20,7 @@ from typing import Optional
 logging.basicConfig(level=logging.INFO, format="[LLM] %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
-DEFAULT_MODEL = os.getenv("LLM_MODEL", "Qwen/Qwen3.5-9B")
+DEFAULT_MODEL = os.getenv("LLM_MODEL", "Qwen/Qwen2.5-7B-Instruct")
 DEFAULT_PORT  = int(os.getenv("LLM_PORT", "8766"))
 DEFAULT_QUANT = os.getenv("LLM_QUANTIZATION", "bitsandbytes")
 DEFAULT_DTYPE = os.getenv("LLM_DTYPE", "float16")
@@ -58,9 +58,12 @@ def load_model(model: str, quantization: Optional[str], dtype: str):
         kwargs = dict(
             model=model,
             dtype=dtype,
-            gpu_memory_utilization=0.92,
-            max_model_len=8192,
             trust_remote_code=True,
+            gpu_memory_utilization=0.75,
+            max_model_len=4096,
+            enable_prefix_caching=False,
+            enforce_eager=True,
+            disable_log_stats=True,
         )
         if quantization and quantization.lower() != "none":
             kwargs["quantization"] = quantization

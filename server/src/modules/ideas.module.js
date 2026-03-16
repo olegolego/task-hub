@@ -2,7 +2,7 @@ const { v4: uuidv4 } = require('uuid')
 
 const ideasModule = {
   name: 'ideas',
-  messageTypes: ['idea:post', 'idea:vote', 'idea:comment', 'idea:comments_load', 'idea:status'],
+  messageTypes: ['idea:post', 'idea:vote', 'idea:comment', 'idea:comments_load', 'idea:status', 'idea:delete'],
 
   init(db) {},
 
@@ -89,6 +89,22 @@ const ideasModule = {
       const updated = db.prepare('SELECT * FROM ideas WHERE id = ?').get(ideaId)
       const outMsg = { type: 'idea:updated', idea: updated }
       if (updated.group_id) broadcastToGroup(outMsg, updated.group_id)
+      else broadcast(outMsg)
+    }
+
+    else if (type === 'idea:delete') {
+      const { ideaId } = payload || {}
+      if (!ideaId) return
+      const idea = db.prepare('SELECT * FROM ideas WHERE id = ?').get(ideaId)
+      if (!idea) return
+      // Only creator or admin can delete
+      if (idea.created_by !== clientInfo.id && clientInfo.role !== 'admin') {
+        ws.send(JSON.stringify({ type: 'error', error: 'Only the author or an admin can delete an idea' }))
+        return
+      }
+      db.prepare('DELETE FROM ideas WHERE id = ?').run(ideaId)
+      const outMsg = { type: 'idea:deleted', ideaId }
+      if (idea.group_id) broadcastToGroup(outMsg, idea.group_id)
       else broadcast(outMsg)
     }
   },

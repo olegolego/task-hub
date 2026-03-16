@@ -55,6 +55,21 @@ async function handle(msg, { clientInfo, ws, broadcast, clients }) {
     return
   }
 
+  // Rename a company file
+  if (msg.type === 'files:rename') {
+    const { fileId, name } = msg.payload || {}
+    if (!fileId || !name?.trim()) return
+    const file = db.prepare('SELECT * FROM company_files WHERE id = ?').get(fileId)
+    if (!file) return
+    if (file.uploaded_by !== clientInfo.id && clientInfo.role !== 'admin') {
+      ws.send(JSON.stringify({ type: MESSAGE_TYPES.ERROR, error: 'Permission denied' }))
+      return
+    }
+    db.prepare('UPDATE company_files SET name = ? WHERE id = ?').run(name.trim(), fileId)
+    broadcast({ type: 'files:renamed', fileId, name: name.trim() })
+    return
+  }
+
   // Delete a company file (any active user can delete their own; admin can delete any)
   if (msg.type === 'files:delete') {
     const { fileId } = msg.payload || {}
@@ -76,7 +91,7 @@ async function handle(msg, { clientInfo, ws, broadcast, clients }) {
 
 module.exports = {
   name: 'companyFiles',
-  messageTypes: ['files:list', 'files:delete', 'files:create_folder', 'files:delete_folder'],
+  messageTypes: ['files:list', 'files:delete', 'files:rename', 'files:create_folder', 'files:delete_folder'],
   init,
   handle,
 }
