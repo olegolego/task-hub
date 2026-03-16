@@ -19,6 +19,7 @@ function createWsClient({ serverUrl, displayName, onMessage, onState }) {
   let reconnectTimer = null
   let destroyed = false
   let currentState = 'offline'
+  let sendQueue = [] // messages queued while offline
 
   const keypair = getOrCreateKeypair()
   const encKeypair = getOrCreateEncryptionKeypair()
@@ -74,6 +75,12 @@ function createWsClient({ serverUrl, displayName, onMessage, onState }) {
       if (msg.type === 'auth:success') {
         setState('connected')
         console.log('[WsClient] Authenticated as', msg.user?.displayName)
+        // Flush any messages queued while we were offline
+        if (sendQueue.length > 0) {
+          console.log(`[WsClient] Flushing ${sendQueue.length} queued messages`)
+          for (const raw of sendQueue) ws.send(raw)
+          sendQueue = []
+        }
       }
 
       if (msg.type === 'auth:fail') {
@@ -109,21 +116,31 @@ function createWsClient({ serverUrl, displayName, onMessage, onState }) {
   }
 
   function send(msg) {
+    const signed = {
+      ...msg,
+      id: msg.id ?? uuidv4(),
+      timestamp: msg.timestamp ?? Date.now(),
+    }
+    signed.signature = signMessage(signed, keypair.secretKeyB64)
+    const raw = JSON.stringify(signed)
+
     if (ws && ws.readyState === WebSocket.OPEN) {
-      const signed = {
-        ...msg,
-        id: msg.id ?? uuidv4(),
-        timestamp: msg.timestamp ?? Date.now(),
-      }
-      signed.signature = signMessage(signed, keypair.secretKeyB64)
-      ws.send(JSON.stringify(signed))
+      ws.send(raw)
       return true
+    }
+
+    // Queue message to send once reconnected (skip read-only queries — they'll get fresh data on sync)
+    const skipTypes = new Set(['task:list', 'files:list', 'meeting:list', 'llm:status', 'llm:chat_list', 'llm:chat_history', 'user:list'])
+    if (!skipTypes.has(msg.type)) {
+      sendQueue.push(raw)
+      console.log(`[WsClient] Queued offline message: ${msg.type} (queue size: ${sendQueue.length})`)
     }
     return false
   }
 
   function destroy() {
     destroyed = true
+    sendQueue = []
     clearTimeout(reconnectTimer)
     if (ws) {
       ws.removeAllListeners()
