@@ -195,6 +195,10 @@ export function initMessageBus() {
         useFilesStore.getState().removeFile(msg.fileId)
         break
 
+      case 'files:renamed':
+        if (msg.fileId && msg.name) useFilesStore.getState().updateFileName(msg.fileId, msg.name)
+        break
+
       case 'files:folder_created':
         if (msg.name) useFilesStore.getState().addFolder(msg.name)
         break
@@ -278,6 +282,10 @@ export function initMessageBus() {
 
       case 'llm:chat_deleted':
         if (msg.chatId) useLLMStore.getState().removeChat(msg.chatId)
+        break
+
+      case 'llm:chat_renamed':
+        if (msg.chatId && msg.title) useLLMStore.getState().updateChatTitle(msg.chatId, msg.title)
         break
 
       case 'llm:error':

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useFilesStore } from '../../store/filesStore'
 import { useConnectionStore } from '../../store/connectionStore'
 import { ipc } from '../../utils/ipc'
@@ -20,7 +20,7 @@ function formatBytes(n) {
 }
 
 export default function FilesPanel() {
-  const { files, loading, loadFiles, deleteFile, deleteFolder, getFolders, createFolder } = useFilesStore()
+  const { files, loading, loadFiles, deleteFile, deleteFolder, getFolders, createFolder, renameFile } = useFilesStore()
   const myUserId = useConnectionStore((s) => s.myUserId)
   const myRole = useConnectionStore((s) => s.myRole)
   const [activeFolder, setActiveFolder] = useState('All')
@@ -145,6 +145,7 @@ export default function FilesPanel() {
             downloading={downloadingId === file.id}
             onDownload={() => handleDownload(file)}
             onDelete={() => deleteFile(file.id)}
+            onRename={(name) => renameFile(file.id, name)}
           />
         ))}
       </div>
@@ -162,21 +163,57 @@ export default function FilesPanel() {
   )
 }
 
-function FileRow({ file, myUserId, myRole, downloading, onDownload, onDelete }) {
+function FileRow({ file, myUserId, myRole, downloading, onDownload, onDelete, onRename }) {
   const [hovered, setHovered] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editName, setEditName] = useState('')
+  const editRef = useRef(null)
   const canDelete = file.uploadedBy === myUserId || myRole === 'admin'
+
+  function startEdit(e) {
+    e.stopPropagation()
+    setEditName(file.name)
+    setEditing(true)
+    setTimeout(() => { editRef.current?.select() }, 0)
+  }
+
+  function commitEdit() {
+    const n = editName.trim()
+    if (n && n !== file.name) onRename(n)
+    setEditing(false)
+  }
+
+  function handleEditKey(e) {
+    if (e.key === 'Enter') { e.preventDefault(); commitEdit() }
+    if (e.key === 'Escape') setEditing(false)
+  }
 
   return (
     <div
       onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseLeave={() => { setHovered(false); if (editing) commitEdit() }}
       style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', background: hovered ? 'var(--hover)' : 'transparent', transition: 'background 0.1s' }}
     >
       <span style={{ fontSize: 18, flexShrink: 0 }}>{MIME_ICON(file.mimeType)}</span>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
-          {file.name}
-        </div>
+        {editing ? (
+          <input
+            ref={editRef}
+            value={editName}
+            onChange={e => setEditName(e.target.value)}
+            onBlur={commitEdit}
+            onKeyDown={handleEditKey}
+            style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--accent)', borderRadius: 3, color: 'var(--text-primary)', fontSize: 12, padding: '1px 4px', outline: 'none', fontFamily: 'inherit', fontWeight: 500 }}
+          />
+        ) : (
+          <div
+            onDoubleClick={startEdit}
+            style={{ fontSize: 12, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}
+            title="Double-click to rename"
+          >
+            {file.name}
+          </div>
+        )}
         <div style={{ fontSize: 10, color: 'var(--text-secondary)', display: 'flex', gap: 8, marginTop: 1 }}>
           <span>{formatBytes(file.size)}</span>
           <span>{file.folder || 'General'}</span>
@@ -184,19 +221,22 @@ function FileRow({ file, myUserId, myRole, downloading, onDownload, onDelete }) 
           <span>{new Date(file.createdAt).toLocaleDateString()}</span>
         </div>
       </div>
-      <div style={{ display: 'flex', gap: 4, opacity: hovered ? 1 : 0, transition: 'opacity 0.1s' }}>
+      <div style={{ display: 'flex', gap: 4, opacity: hovered && !editing ? 1 : 0, transition: 'opacity 0.1s' }}>
+        <button
+          onClick={startEdit}
+          style={{ background: 'var(--surface)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, color: 'var(--text-secondary)', fontSize: 10, fontWeight: 600, padding: '2px 6px', cursor: 'pointer' }}
+          title="Rename"
+        >✎</button>
         <button
           onClick={onDownload}
           disabled={downloading}
           style={{ background: 'var(--surface)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, color: 'var(--accent)', fontSize: 10, fontWeight: 600, padding: '2px 8px', cursor: downloading ? 'default' : 'pointer' }}
         >
-          {downloading ? '…' : '↓ Download'}
+          {downloading ? '…' : '↓'}
         </button>
         {canDelete && (
           <button
-            onClick={() => {
-              if (window.confirm(`Delete "${file.name}"?`)) onDelete()
-            }}
+            onClick={() => { if (window.confirm(`Delete "${file.name}"?`)) onDelete() }}
             style={{ background: 'transparent', border: '1px solid rgba(239,71,111,0.3)', borderRadius: 4, color: '#ef476f', fontSize: 10, padding: '2px 6px', cursor: 'pointer' }}
           >✕</button>
         )}

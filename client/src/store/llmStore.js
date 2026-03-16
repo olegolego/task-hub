@@ -96,4 +96,13 @@ export const useLLMStore = create((set, get) => ({
   deleteChat: (chatId) => {
     ipc.sendMessage({ type: 'llm:chat_delete', payload: { chatId } })
   },
+
+  renameChat: (chatId, title) => {
+    set((s) => ({ chats: s.chats.map(c => c.id === chatId ? { ...c, title } : c) }))
+    ipc.sendMessage({ type: 'llm:chat_rename', payload: { chatId, title } })
+  },
+
+  updateChatTitle: (chatId, title) => set((s) => ({
+    chats: s.chats.map(c => c.id === chatId ? { ...c, title } : c),
+  })),
 }))

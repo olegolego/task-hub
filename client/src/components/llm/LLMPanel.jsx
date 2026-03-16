@@ -14,7 +14,7 @@ export default function LLMPanel() {
   const {
     chats, activeChatId, messagesByChat,
     thinking, loadingHistory, llmStatus, llmModel, lastError,
-    checkStatus, loadChats, newChat, selectChat, sendMessage, deleteChat,
+    checkStatus, loadChats, newChat, selectChat, sendMessage, deleteChat, renameChat,
   } = useLLMStore()
 
   const [input, setInput] = useState('')
@@ -152,6 +152,7 @@ export default function LLMPanel() {
               active={chat.id === activeChatId}
               onSelect={() => selectChat(chat.id)}
               onDelete={() => deleteChat(chat.id)}
+              onRename={(title) => renameChat(chat.id, title)}
             />
           ))}
         </div>
@@ -345,16 +346,38 @@ function StatusDot({ status, model }) {
   )
 }
 
-function ChatItem({ chat, active, onSelect, onDelete }) {
+function ChatItem({ chat, active, onSelect, onDelete, onRename }) {
   const [hovered, setHovered] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editTitle, setEditTitle] = useState('')
+  const editRef = useRef(null)
+
+  function startEdit(e) {
+    e.stopPropagation()
+    setEditTitle(chat.title)
+    setEditing(true)
+    setTimeout(() => { editRef.current?.select() }, 0)
+  }
+
+  function commitEdit() {
+    const t = editTitle.trim()
+    if (t && t !== chat.title) onRename(t)
+    setEditing(false)
+  }
+
+  function handleEditKey(e) {
+    if (e.key === 'Enter') { e.preventDefault(); commitEdit() }
+    if (e.key === 'Escape') setEditing(false)
+  }
+
   return (
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      onClick={onSelect}
+      onClick={editing ? undefined : onSelect}
       style={{
         padding: '6px 10px',
-        cursor: 'pointer',
+        cursor: editing ? 'default' : 'pointer',
         background: active ? 'var(--hover)' : 'transparent',
         borderLeft: active ? '2px solid var(--accent)' : '2px solid transparent',
         display: 'flex',
@@ -362,14 +385,38 @@ function ChatItem({ chat, active, onSelect, onDelete }) {
         gap: 4,
       }}
     >
-      <span style={{ flex: 1, fontSize: 11, color: active ? 'var(--text-primary)' : 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {chat.title}
-      </span>
-      {(hovered || active) && (
-        <button
-          onClick={(e) => { e.stopPropagation(); if (window.confirm('Delete this chat?')) onDelete() }}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef476f', fontSize: 10, padding: 0, opacity: 0.7, flexShrink: 0 }}
-        >✕</button>
+      {editing ? (
+        <input
+          ref={editRef}
+          value={editTitle}
+          onChange={e => setEditTitle(e.target.value)}
+          onBlur={commitEdit}
+          onKeyDown={handleEditKey}
+          onClick={e => e.stopPropagation()}
+          style={{ flex: 1, background: 'var(--bg)', border: '1px solid var(--accent)', borderRadius: 3, color: 'var(--text-primary)', fontSize: 11, padding: '1px 4px', outline: 'none', fontFamily: 'inherit' }}
+        />
+      ) : (
+        <span
+          onDoubleClick={startEdit}
+          style={{ flex: 1, fontSize: 11, color: active ? 'var(--text-primary)' : 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+          title="Double-click to rename"
+        >
+          {chat.title}
+        </span>
+      )}
+      {!editing && (hovered || active) && (
+        <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+          <button
+            onClick={startEdit}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 10, padding: 0, opacity: 0.7 }}
+            title="Rename"
+          >✎</button>
+          <button
+            onClick={(e) => { e.stopPropagation(); if (window.confirm('Delete this chat?')) onDelete() }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef476f', fontSize: 10, padding: 0, opacity: 0.7 }}
+            title="Delete"
+          >✕</button>
+        </div>
       )}
     </div>
   )
