@@ -54,7 +54,7 @@ function detectContext(text) {
     if (re.test(text)) detected.add(key)
   }
   // @mention overrides — @tasks, @files, @meetings, etc.
-  const mentions = text.match(/@(\w+)/g) || []
+  const mentions = text.match(/@([\w.:_-]+)/g) || []
   for (const mention of mentions) {
     const word = mention.slice(1).toLowerCase()
     for (const [key, aliases] of Object.entries(MENTION_ALIASES)) {
@@ -62,6 +62,15 @@ function detectContext(text) {
     }
   }
   return detected
+}
+
+// Extract specific file IDs from @file:UUID mentions
+function extractFileMentions(text) {
+  const ids = []
+  const re = /@file:([\w-]+)/g
+  let m
+  while ((m = re.exec(text)) !== null) ids.push(m[1])
+  return ids
 }
 
 // ---------------------------------------------------------------------------
@@ -181,13 +190,25 @@ function extractPdfText(filePath) {
   }
 }
 
-function ctxFiles(db, dataDir) {
-  const rows = db.prepare(`
-    SELECT cf.id, cf.name, cf.mime_type, cf.folder, cf.stored_path, u.display_name as uploader
-    FROM company_files cf
-    JOIN users u ON cf.uploaded_by = u.id
-    ORDER BY cf.created_at DESC LIMIT 30
-  `).all()
+function ctxFiles(db, dataDir, fileIds = []) {
+  let rows
+  if (fileIds.length > 0) {
+    const placeholders = fileIds.map(() => '?').join(',')
+    rows = db.prepare(`
+      SELECT cf.id, cf.name, cf.mime_type, cf.folder, cf.stored_path, u.display_name as uploader
+      FROM company_files cf
+      JOIN users u ON cf.uploaded_by = u.id
+      WHERE cf.id IN (${placeholders})
+      ORDER BY cf.created_at DESC
+    `).all(...fileIds)
+  } else {
+    rows = db.prepare(`
+      SELECT cf.id, cf.name, cf.mime_type, cf.folder, cf.stored_path, u.display_name as uploader
+      FROM company_files cf
+      JOIN users u ON cf.uploaded_by = u.id
+      ORDER BY cf.created_at DESC LIMIT 30
+    `).all()
+  }
   if (!rows.length) return ''
   const textTypes = ['text/', 'application/json', 'application/xml', 'application/javascript']
   const textExts = /\.(txt|md|js|ts|py|json|yaml|yml|csv|html|css|sh|sql|log)$/i
@@ -223,7 +244,7 @@ function ctxFiles(db, dataDir) {
 // ---------------------------------------------------------------------------
 // Build the system prompt for a given request
 // ---------------------------------------------------------------------------
-function buildSystemPrompt(db, dataDir, userId, contextKeys, useCompanyData) {
+function buildSystemPrompt(db, dataDir, userId, contextKeys, useCompanyData, specificFileIds = []) {
   const sections = []
 
   if (contextKeys.has('users') || contextKeys.has('tasks') || contextKeys.has('ideas') ||
@@ -234,7 +255,12 @@ function buildSystemPrompt(db, dataDir, userId, contextKeys, useCompanyData) {
   if (contextKeys.has('ideas'))    sections.push(ctxIdeas(db, userId))
   if (contextKeys.has('meetings')) sections.push(ctxMeetings(db, userId))
   if (contextKeys.has('messages')) sections.push(ctxMessages(db, userId))
-  if (useCompanyData && contextKeys.has('files')) sections.push(ctxFiles(db, dataDir))
+  // Include files if: explicit @files mention, specific @file:id mentions, or checkbox ticked
+  if (specificFileIds.length > 0) {
+    sections.push(ctxFiles(db, dataDir, specificFileIds))
+  } else if (contextKeys.has('files') || useCompanyData) {
+    sections.push(ctxFiles(db, dataDir))
+  }
 
   const contextBlock = sections.filter(Boolean).join('\n\n')
 
@@ -266,7 +292,7 @@ async function callLLM(messages, maxTokens = 1024, temperature = 0.7) {
 // ---------------------------------------------------------------------------
 const llmChatModule = {
   name: 'llmChat',
-  messageTypes: ['llm:chat', 'llm:chat_new', 'llm:chat_list', 'llm:chat_history', 'llm:chat_delete', 'llm:chat_rename', 'llm:context_list', 'llm:status'],
+  messageTypes: ['llm:chat', 'llm:chat_new', 'llm:chat_list', 'llm:chat_history', 'llm:chat_delete', 'llm:chat_rename', 'llm:context_list', 'llm:files_list', 'llm:status'],
 
   init(db) {
     db.exec(`
@@ -355,6 +381,17 @@ const llmChatModule = {
       return
     }
 
+    // ---- llm:files_list ---------------------------------------------------
+    if (type === 'llm:files_list') {
+      const files = db.prepare(`
+        SELECT id, name, folder, mime_type as mimeType
+        FROM company_files
+        ORDER BY folder ASC, name ASC
+      `).all()
+      ws.send(JSON.stringify({ type: 'llm:files_list_response', files }))
+      return
+    }
+
     // ---- llm:context_list -------------------------------------------------
     if (type === 'llm:context_list') {
       ws.send(JSON.stringify({
@@ -418,9 +455,10 @@ const llmChatModule = {
 
         // Auto-detect what context to fetch
         const contextKeys = detectContext(userMessage)
+        const specificFileIds = extractFileMentions(userMessage)
 
         // Build fresh system prompt with relevant data
-        const systemPrompt = buildSystemPrompt(db, getDataDir(), clientInfo.id, contextKeys, useCompanyData)
+        const systemPrompt = buildSystemPrompt(db, getDataDir(), clientInfo.id, contextKeys, useCompanyData, specificFileIds)
 
         // Load recent conversation history
         const history = db.prepare(`

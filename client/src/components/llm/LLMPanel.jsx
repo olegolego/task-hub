@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useLLMStore } from '../../store/llmStore'
+import { ipc } from '../../utils/ipc'
 
 const MENTION_CONTEXTS = [
   { key: 'tasks',    label: 'Tasks',    icon: '✓', desc: 'Your tasks & team tasks' },
@@ -9,6 +10,13 @@ const MENTION_CONTEXTS = [
   { key: 'messages', label: 'Messages', icon: '💬', desc: 'Recent group messages' },
   { key: 'users',    label: 'Users',    icon: '👥', desc: 'Team members' },
 ]
+
+const MIME_ICON_SMALL = (mime = '') => {
+  if ((mime || '').includes('pdf')) return '📄'
+  if ((mime || '').startsWith('image/')) return '🖼'
+  if ((mime || '').includes('text') || (mime || '').includes('json')) return '📝'
+  return '📎'
+}
 
 export default function LLMPanel() {
   const {
@@ -20,6 +28,7 @@ export default function LLMPanel() {
   const [input, setInput] = useState('')
   const [useFiles, setUseFiles] = useState(false)
   const [mention, setMention] = useState({ active: false, query: '', startIndex: 0, selectedIndex: 0, filtered: [] })
+  const [companyFiles, setCompanyFiles] = useState([])
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
 
@@ -28,6 +37,11 @@ export default function LLMPanel() {
   useEffect(() => {
     checkStatus()
     loadChats()
+    ipc.sendMessage({ type: 'llm:files_list' })
+    const unsub = ipc.onMessage((msg) => {
+      if (msg?.type === 'llm:files_list_response') setCompanyFiles(msg.files || [])
+    })
+    return unsub
   }, [])
 
   useEffect(() => {
@@ -40,13 +54,29 @@ export default function LLMPanel() {
 
     const cursor = e.target.selectionStart
     const textUpToCursor = val.slice(0, cursor)
-    const match = textUpToCursor.match(/@(\w*)$/)
+    const match = textUpToCursor.match(/@([\w.]*)$/)
 
     if (match) {
       const query = match[1].toLowerCase()
-      const filtered = MENTION_CONTEXTS.filter(c =>
+      // Match context categories
+      const ctxMatches = MENTION_CONTEXTS.filter(c =>
         c.key.startsWith(query) || c.label.toLowerCase().startsWith(query)
-      )
+      ).map(c => ({ ...c, isFile: false }))
+      // Match individual company files
+      const fileMatches = query.length >= 0 ? companyFiles
+        .filter(f => f.name.toLowerCase().includes(query) || (f.folder || '').toLowerCase().includes(query))
+        .slice(0, 8)
+        .map(f => ({
+          key: `file:${f.id}`,
+          label: f.name,
+          icon: MIME_ICON_SMALL(f.mimeType),
+          desc: f.folder || 'General',
+          isFile: true,
+          fileId: f.id,
+          fileName: f.name,
+        })) : []
+
+      const filtered = [...ctxMatches, ...fileMatches]
       if (filtered.length > 0) {
         setMention({ active: true, query, startIndex: match.index, selectedIndex: 0, filtered })
         return
@@ -58,12 +88,14 @@ export default function LLMPanel() {
   function selectMention(ctx) {
     const before = input.slice(0, mention.startIndex)
     const after = input.slice(mention.startIndex + mention.query.length + 1)
-    const newInput = before + '@' + ctx.key + ' ' + after
+    // Files use @file:id syntax; context sources use @key
+    const token = ctx.isFile ? `@file:${ctx.fileId}` : `@${ctx.key}`
+    const newInput = before + token + ' ' + after
     setInput(newInput)
     setMention(m => ({ ...m, active: false }))
     setTimeout(() => {
       if (inputRef.current) {
-        const pos = (before + '@' + ctx.key + ' ').length
+        const pos = (before + token + ' ').length
         inputRef.current.focus()
         inputRef.current.setSelectionRange(pos, pos)
       }
@@ -278,9 +310,12 @@ function MentionDropdown({ items, selectedIndex, onSelect, onHover }) {
   const listRef = useRef(null)
 
   useEffect(() => {
-    const el = listRef.current?.children[selectedIndex]
+    const el = listRef.current?.querySelectorAll('[data-item]')[selectedIndex]
     el?.scrollIntoView({ block: 'nearest' })
   }, [selectedIndex])
+
+  const ctxItems = items.filter(i => !i.isFile)
+  const fileItems = items.filter(i => i.isFile)
 
   return (
     <div
@@ -297,40 +332,70 @@ function MentionDropdown({ items, selectedIndex, onSelect, onHover }) {
         overflow: 'hidden',
         boxShadow: '0 -4px 20px rgba(0,0,0,0.4)',
         zIndex: 100,
-        maxHeight: 260,
+        maxHeight: 320,
         overflowY: 'auto',
       }}
     >
-      <div style={{ padding: '5px 10px 3px', fontSize: 9, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.8, opacity: 0.6 }}>
-        Data sources
-      </div>
-      {items.map((ctx, i) => (
-        <div
-          key={ctx.key}
-          onMouseDown={(e) => { e.preventDefault(); onSelect(ctx) }}
-          onMouseEnter={() => onHover(i)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            padding: '7px 12px',
-            cursor: 'pointer',
-            background: i === selectedIndex ? 'rgba(255,255,255,0.07)' : 'transparent',
-            borderLeft: i === selectedIndex ? '2px solid var(--accent)' : '2px solid transparent',
-            transition: 'background 0.1s',
-          }}
-        >
-          <span style={{ fontSize: 14, flexShrink: 0 }}>{ctx.icon}</span>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
-              @{ctx.key}
-            </div>
-            <div style={{ fontSize: 10, color: 'var(--text-secondary)', opacity: 0.7 }}>
-              {ctx.desc}
-            </div>
+      {ctxItems.length > 0 && (
+        <>
+          <div style={{ padding: '5px 10px 3px', fontSize: 9, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.8, opacity: 0.6 }}>
+            Data sources
           </div>
-        </div>
-      ))}
+          {ctxItems.map((ctx) => {
+            const i = items.indexOf(ctx)
+            return (
+              <div
+                key={ctx.key}
+                data-item
+                onMouseDown={(e) => { e.preventDefault(); onSelect(ctx) }}
+                onMouseEnter={() => onHover(i)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', cursor: 'pointer',
+                  background: i === selectedIndex ? 'rgba(255,255,255,0.07)' : 'transparent',
+                  borderLeft: i === selectedIndex ? '2px solid var(--accent)' : '2px solid transparent',
+                  transition: 'background 0.1s',
+                }}
+              >
+                <span style={{ fontSize: 14, flexShrink: 0 }}>{ctx.icon}</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>@{ctx.key}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-secondary)', opacity: 0.7 }}>{ctx.desc}</div>
+                </div>
+              </div>
+            )
+          })}
+        </>
+      )}
+      {fileItems.length > 0 && (
+        <>
+          <div style={{ padding: '5px 10px 3px', fontSize: 9, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.8, opacity: 0.6, borderTop: ctxItems.length > 0 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
+            Files
+          </div>
+          {fileItems.map((ctx) => {
+            const i = items.indexOf(ctx)
+            return (
+              <div
+                key={ctx.key}
+                data-item
+                onMouseDown={(e) => { e.preventDefault(); onSelect(ctx) }}
+                onMouseEnter={() => onHover(i)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '6px 12px', cursor: 'pointer',
+                  background: i === selectedIndex ? 'rgba(255,255,255,0.07)' : 'transparent',
+                  borderLeft: i === selectedIndex ? '2px solid var(--accent)' : '2px solid transparent',
+                  transition: 'background 0.1s',
+                }}
+              >
+                <span style={{ fontSize: 13, flexShrink: 0 }}>{ctx.icon}</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ctx.label}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-secondary)', opacity: 0.7 }}>{ctx.desc}</div>
+                </div>
+              </div>
+            )
+          })}
+        </>
+      )}
     </div>
   )
 }

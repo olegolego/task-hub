@@ -62,6 +62,8 @@ const MESSAGE_TYPES = {
   LLM_CHAT_RENAMED: 'llm:chat_renamed',
   LLM_CONTEXT_LIST: 'llm:context_list',
   LLM_CONTEXT_LIST_RESPONSE: 'llm:context_list_response',
+  LLM_FILES_LIST: 'llm:files_list',
+  LLM_FILES_LIST_RESPONSE: 'llm:files_list_response',
   // Company files
   FILES_LIST: 'files:list',
   FILES_LIST_RESPONSE: 'files:list_response',

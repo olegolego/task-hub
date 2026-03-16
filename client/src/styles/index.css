@@ -39,7 +39,6 @@
   html, body, #root {
     height: 100%;
     overflow: hidden;
-    user-select: none;
   }
 
   body {
@@ -48,10 +47,12 @@
     font-family: 'IBM Plex Sans', system-ui, sans-serif;
     font-size: 14px;
     line-height: 1.5;
+    user-select: text;
   }
 
-  input, textarea {
-    user-select: text;
+  /* Prevent accidental selection on UI chrome */
+  button, [role="button"], nav, [data-no-select] {
+    user-select: none;
   }
 
   /* Custom scrollbar */
