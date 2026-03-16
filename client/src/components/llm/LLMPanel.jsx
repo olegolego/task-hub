@@ -1,6 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useLLMStore } from '../../store/llmStore'
 
+const MENTION_CONTEXTS = [
+  { key: 'tasks',    label: 'Tasks',    icon: '✓', desc: 'Your tasks & team tasks' },
+  { key: 'ideas',    label: 'Ideas',    icon: '💡', desc: 'Team ideas & proposals' },
+  { key: 'files',    label: 'Files',    icon: '📄', desc: 'Company documents & uploads' },
+  { key: 'meetings', label: 'Meetings', icon: '📅', desc: 'Upcoming calendar events' },
+  { key: 'messages', label: 'Messages', icon: '💬', desc: 'Recent group messages' },
+  { key: 'users',    label: 'Users',    icon: '👥', desc: 'Team members' },
+]
+
 export default function LLMPanel() {
   const {
     chats, activeChatId, messagesByChat,
@@ -10,6 +19,7 @@ export default function LLMPanel() {
 
   const [input, setInput] = useState('')
   const [useFiles, setUseFiles] = useState(false)
+  const [mention, setMention] = useState({ active: false, query: '', startIndex: 0, selectedIndex: 0, filtered: [] })
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
 
@@ -24,14 +34,48 @@ export default function LLMPanel() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [activeMessages.length, thinking])
 
+  function handleInputChange(e) {
+    const val = e.target.value
+    setInput(val)
+
+    const cursor = e.target.selectionStart
+    const textUpToCursor = val.slice(0, cursor)
+    const match = textUpToCursor.match(/@(\w*)$/)
+
+    if (match) {
+      const query = match[1].toLowerCase()
+      const filtered = MENTION_CONTEXTS.filter(c =>
+        c.key.startsWith(query) || c.label.toLowerCase().startsWith(query)
+      )
+      if (filtered.length > 0) {
+        setMention({ active: true, query, startIndex: match.index, selectedIndex: 0, filtered })
+        return
+      }
+    }
+    if (mention.active) setMention(m => ({ ...m, active: false }))
+  }
+
+  function selectMention(ctx) {
+    const before = input.slice(0, mention.startIndex)
+    const after = input.slice(mention.startIndex + mention.query.length + 1)
+    const newInput = before + '@' + ctx.key + ' ' + after
+    setInput(newInput)
+    setMention(m => ({ ...m, active: false }))
+    setTimeout(() => {
+      if (inputRef.current) {
+        const pos = (before + '@' + ctx.key + ' ').length
+        inputRef.current.focus()
+        inputRef.current.setSelectionRange(pos, pos)
+      }
+    }, 0)
+  }
+
   function handleSend(e) {
     e.preventDefault()
     if (!input.trim() || thinking) return
-    // Optimistically add the user's message to the view
     const text = input.trim()
     setInput('')
     sendMessage(text, useFiles)
-    // Manually optimistic-add so user sees it immediately
     if (activeChatId) {
       useLLMStore.getState().addMessage(activeChatId, {
         id: `optimistic-${Date.now()}`,
@@ -43,6 +87,28 @@ export default function LLMPanel() {
   }
 
   function handleKeyDown(e) {
+    if (mention.active) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setMention(m => ({ ...m, selectedIndex: Math.min(m.selectedIndex + 1, m.filtered.length - 1) }))
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setMention(m => ({ ...m, selectedIndex: Math.max(m.selectedIndex - 1, 0) }))
+        return
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault()
+        selectMention(mention.filtered[mention.selectedIndex])
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setMention(m => ({ ...m, active: false }))
+        return
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend(e)
@@ -137,15 +203,25 @@ export default function LLMPanel() {
         {/* Input */}
         <form
           onSubmit={handleSend}
-          style={{ padding: '8px 12px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--surface)' }}
+          style={{ padding: '8px 12px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--surface)', position: 'relative' }}
         >
+          {/* @mention dropdown */}
+          {mention.active && (
+            <MentionDropdown
+              items={mention.filtered}
+              selectedIndex={mention.selectedIndex}
+              onSelect={selectMention}
+              onHover={(i) => setMention(m => ({ ...m, selectedIndex: i }))}
+            />
+          )}
+
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
             <textarea
               ref={inputRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={handleInputChange}
               onKeyDown={handleKeyDown}
-              placeholder={activeChatId ? 'Ask anything… (Enter to send, Shift+Enter for newline)' : 'Start a new chat above, then ask something…'}
+              placeholder={activeChatId ? 'Ask anything… type @ to reference data sources' : 'Start a new chat above, then ask something…'}
               rows={2}
               disabled={llmStatus === 'offline'}
               style={{
@@ -193,6 +269,67 @@ export default function LLMPanel() {
           </label>
         </form>
       </div>
+    </div>
+  )
+}
+
+function MentionDropdown({ items, selectedIndex, onSelect, onHover }) {
+  const listRef = useRef(null)
+
+  useEffect(() => {
+    const el = listRef.current?.children[selectedIndex]
+    el?.scrollIntoView({ block: 'nearest' })
+  }, [selectedIndex])
+
+  return (
+    <div
+      ref={listRef}
+      style={{
+        position: 'absolute',
+        bottom: '100%',
+        left: 12,
+        right: 12,
+        marginBottom: 4,
+        background: 'var(--surface)',
+        border: '1px solid rgba(255,255,255,0.12)',
+        borderRadius: 8,
+        overflow: 'hidden',
+        boxShadow: '0 -4px 20px rgba(0,0,0,0.4)',
+        zIndex: 100,
+        maxHeight: 260,
+        overflowY: 'auto',
+      }}
+    >
+      <div style={{ padding: '5px 10px 3px', fontSize: 9, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.8, opacity: 0.6 }}>
+        Data sources
+      </div>
+      {items.map((ctx, i) => (
+        <div
+          key={ctx.key}
+          onMouseDown={(e) => { e.preventDefault(); onSelect(ctx) }}
+          onMouseEnter={() => onHover(i)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '7px 12px',
+            cursor: 'pointer',
+            background: i === selectedIndex ? 'rgba(255,255,255,0.07)' : 'transparent',
+            borderLeft: i === selectedIndex ? '2px solid var(--accent)' : '2px solid transparent',
+            transition: 'background 0.1s',
+          }}
+        >
+          <span style={{ fontSize: 14, flexShrink: 0 }}>{ctx.icon}</span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
+              @{ctx.key}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-secondary)', opacity: 0.7 }}>
+              {ctx.desc}
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -298,7 +435,7 @@ function EmptyState({ status, onNew }) {
       <div style={{ textAlign: 'center', fontSize: 13, opacity: 0.7 }}>
         {status === 'offline'
           ? 'LLM server is offline.\nRun bash ~/task-hub/llm/start.sh on the GPU server.'
-          : 'Ask the AI anything about your tasks,\nteam, meetings, or company files.'}
+          : 'Ask the AI anything about your tasks,\nteam, meetings, or company files.\nType @ to reference specific data sources.'}
       </div>
       {status !== 'offline' && (
         <button
