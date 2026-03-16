@@ -77,6 +77,18 @@ function buildCompanyFilesContext(db, dataDir, fileIds) {
 
   const parts = []
   for (const file of rows) {
+    const fullPath = path.join(dataDir, 'uploads', file.stored_path)
+    const isPdf = (file.mime_type || '').includes('pdf') || /\.pdf$/i.test(file.name)
+    if (isPdf) {
+      try {
+        const { execFileSync } = require('child_process')
+        const text = execFileSync('pdftotext', [fullPath, '-'], { timeout: 10000, maxBuffer: 2 * 1024 * 1024 }).toString('utf8').trim()
+        parts.push(`### File: ${file.name}\n\`\`\`\n${text.slice(0, 4000)}\n\`\`\``)
+      } catch {
+        parts.push(`### File: ${file.name} (PDF — could not extract text)`)
+      }
+      continue
+    }
     // Only include text-readable files
     const textTypes = ['text/', 'application/json', 'application/xml', 'application/javascript']
     const isText = textTypes.some(t => (file.mime_type || '').startsWith(t)) ||
@@ -86,8 +98,7 @@ function buildCompanyFilesContext(db, dataDir, fileIds) {
       continue
     }
     try {
-      const filePath = path.join(dataDir, 'uploads', file.stored_path)
-      const content = fs.readFileSync(filePath, 'utf8').slice(0, 4000)
+      const content = fs.readFileSync(fullPath, 'utf8').slice(0, 4000)
       parts.push(`### File: ${file.name}\n\`\`\`\n${content}\n\`\`\``)
     } catch {
       parts.push(`### File: ${file.name} (could not read)`)

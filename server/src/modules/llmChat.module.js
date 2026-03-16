@@ -171,6 +171,16 @@ function ctxMessages(db, userId) {
   return `## Recent Group Messages\n${lines.join('\n')}`
 }
 
+function extractPdfText(filePath) {
+  try {
+    const { execFileSync } = require('child_process')
+    const out = execFileSync('pdftotext', [filePath, '-'], { timeout: 10000, maxBuffer: 2 * 1024 * 1024 })
+    return out.toString('utf8').trim()
+  } catch {
+    return null
+  }
+}
+
 function ctxFiles(db, dataDir) {
   const rows = db.prepare(`
     SELECT cf.id, cf.name, cf.mime_type, cf.folder, cf.stored_path, u.display_name as uploader
@@ -183,13 +193,25 @@ function ctxFiles(db, dataDir) {
   const textExts = /\.(txt|md|js|ts|py|json|yaml|yml|csv|html|css|sh|sql|log)$/i
   const parts = []
   for (const f of rows) {
+    const fullPath = path.join(dataDir, 'uploads', f.stored_path)
+    const isPdf = (f.mime_type || '').includes('pdf') || /\.pdf$/i.test(f.name)
     const isText = textTypes.some(t => (f.mime_type || '').startsWith(t)) || textExts.test(f.name)
+
+    if (isPdf) {
+      const text = extractPdfText(fullPath)
+      if (text) {
+        parts.push(`### ${f.name} [${f.folder}] uploaded by ${f.uploader}\n\`\`\`\n${text.slice(0, 4000)}\n\`\`\``)
+      } else {
+        parts.push(`### ${f.name} [${f.folder}] (PDF — could not extract text)`)
+      }
+      continue
+    }
     if (!isText) {
       parts.push(`### ${f.name} [${f.folder}] (binary, uploaded by ${f.uploader})`)
       continue
     }
     try {
-      const content = fs.readFileSync(path.join(dataDir, 'uploads', f.stored_path), 'utf8').slice(0, 3000)
+      const content = fs.readFileSync(fullPath, 'utf8').slice(0, 3000)
       parts.push(`### ${f.name} [${f.folder}] uploaded by ${f.uploader}\n\`\`\`\n${content}\n\`\`\``)
     } catch {
       parts.push(`### ${f.name} (could not read)`)
