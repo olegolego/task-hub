@@ -15,6 +15,7 @@
     --priority-high: #ef476f;
     --priority-medium: #ffd166;
     --priority-low: #06d6a0;
+    --border: rgba(255, 255, 255, 0.08);
     --scrollbar: #2a2a4a;
     --sidebar-width: 40px;
   }
@@ -27,6 +28,7 @@
     --text-secondary: #6c757d;
     --accent: #4361ee;
     --completed: #adb5bd;
+    --border: rgba(0, 0, 0, 0.12);
     --scrollbar: #dee2e6;
   }
 
@@ -36,7 +38,9 @@
     padding: 0;
   }
 
-  html, body, #root {
+  html,
+  body,
+  #root {
     height: 100%;
     overflow: hidden;
   }
@@ -51,7 +55,10 @@
   }
 
   /* Prevent accidental selection on UI chrome */
-  button, [role="button"], nav, [data-no-select] {
+  button,
+  [role='button'],
+  nav,
+  [data-no-select] {
     user-select: none;
   }
 
@@ -91,13 +98,25 @@
   }
 
   @keyframes slideIn {
-    from { opacity: 0; transform: translateY(-6px); }
-    to   { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   @keyframes slideOut {
-    from { opacity: 1; transform: translateX(0); }
-    to   { opacity: 0; transform: translateX(60px); }
+    from {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateX(60px);
+    }
   }
 
   .task-exit {
@@ -106,10 +125,18 @@
 
   /* Checkbox animation */
   @keyframes checkBounce {
-    0%   { transform: scale(1); }
-    40%  { transform: scale(1.3); }
-    70%  { transform: scale(0.9); }
-    100% { transform: scale(1); }
+    0% {
+      transform: scale(1);
+    }
+    40% {
+      transform: scale(1.3);
+    }
+    70% {
+      transform: scale(0.9);
+    }
+    100% {
+      transform: scale(1);
+    }
   }
 
   .check-bounce {
@@ -123,8 +150,13 @@
 
   /* Pulse dot for online status */
   @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.4;
+    }
   }
 
   .pulse {
@@ -133,7 +165,15 @@
 
   /* LLM thinking dots */
   @keyframes llm-pulse {
-    0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
-    40% { transform: scale(1); opacity: 1; }
+    0%,
+    80%,
+    100% {
+      transform: scale(0.6);
+      opacity: 0.4;
+    }
+    40% {
+      transform: scale(1);
+      opacity: 1;
+    }
   }
 }

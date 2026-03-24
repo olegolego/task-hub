@@ -1,5 +1,8 @@
 node_modules/
-dist/
+client/dist/
+server/dist/
+shared/dist/
+*.tsbuildinfo
 .DS_Store
 
 # Local user keypair and config — never commit these
@@ -10,8 +13,4 @@ dist/
 
 # Env / secrets
 .env
-.env.*
-
-# Build artifacts
-client/dist/
-server/dist/
+!.env.example
