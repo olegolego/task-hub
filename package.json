@@ -1,16 +1,49 @@
 {
   "name": "task-hub",
   "private": true,
-  "workspaces": ["shared", "client"],
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "client"
+  ],
   "scripts": {
     "dev": "concurrently \"npm run server\" \"sleep 2 && npm run client\"",
-    "server": "node server/src/index.js",
+    "server": "npx tsx server/src/index.ts",
     "client": "npm run dev --prefix client",
     "install:server": "npm install --prefix server",
     "install:all": "npm install && npm run install:server",
-    "dev:user2": "TASKMANAGER_CONFIG_DIR=$HOME/.taskmanager-user2 npm run dev --prefix client"
+    "dev:user2": "TASKMANAGER_CONFIG_DIR=$HOME/.taskmanager-user2 npm run dev --prefix client",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc -b shared/tsconfig.json server/tsconfig.json client/tsconfig.json",
+    "test": "npm run test:server && npm run test:client",
+    "test:server": "vitest run --config server/vitest.config.ts",
+    "test:client": "vitest run --config client/vitest.config.ts",
+    "prepare": "husky"
   },
   "devDependencies": {
-    "concurrently": "^9.1.0"
+    "@eslint/js": "^9.17.0",
+    "@typescript-eslint/eslint-plugin": "^8.18.0",
+    "@typescript-eslint/parser": "^8.18.0",
+    "concurrently": "^9.1.0",
+    "eslint": "^9.17.0",
+    "eslint-plugin-react": "^7.37.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "husky": "^9.1.0",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.4.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0",
+    "@vitejs/plugin-react": "^4.4.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml,css}": [
+      "prettier --write"
+    ]
   }
 }

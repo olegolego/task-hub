@@ -1,10 +1,20 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ['./index.html', './src/**/*.{js,jsx}'],
+  content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
   darkMode: 'class',
   theme: {
     extend: {
       colors: {
+        // CSS variable-based tokens for seamless dark/light theming
+        bg: 'var(--bg)',
+        surface: 'var(--surface)',
+        hover: 'var(--hover)',
+        primary: 'var(--text-primary)',
+        secondary: 'var(--text-secondary)',
+        accent: 'var(--accent)',
+        completed: 'var(--completed)',
+        border: 'var(--border, rgba(255,255,255,0.08))',
+        // Named color palette (for direct usage)
         dark: {
           bg: '#1a1a2e',
           surface: '#22223b',
