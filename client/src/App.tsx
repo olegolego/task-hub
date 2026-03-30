@@ -12,8 +12,13 @@ import MessagesPanel from './components/messages/MessagesPanel'
 import FilesPanel from './components/files/FilesPanel'
 import CalendarPanel from './components/calendar/CalendarPanel'
 import LLMPanel from './components/llm/LLMPanel'
+import ActivityPanel from './components/activity/ActivityPanel'
 import SetupScreen from './components/setup/SetupScreen'
-import { useTaskStore } from './store/taskStore'
+import SearchOverlay from './components/search/SearchOverlay'
+import SettingsPanel from './components/settings/SettingsPanel'
+import TaskDetailPanel from './components/tasks/TaskDetailPanel'
+import PendingBanner from './components/shared/PendingBanner'
+import { useUIStore } from './store/uiStore'
 import { useShortcuts } from './hooks/useShortcuts'
 import { initMessageBus } from './network/messageBus'
 import { useConnectionStore } from './store/connectionStore'
@@ -29,12 +34,20 @@ const PANEL_TITLES = {
   [NAV_PANELS.FILES]: 'FILES',
   [NAV_PANELS.CALENDAR]: 'CALENDAR',
   [NAV_PANELS.LLM]: 'AI ASSISTANT',
+  [NAV_PANELS.ACTIVITY]: 'ACTIVITY',
 }
 
 export default function App() {
-  const { loadSettings, theme } = useTaskStore()
-  const { setServerUrl, setDisplayName } = useConnectionStore()
-  const [activePanel, setActivePanel] = useState(NAV_PANELS.TASKS)
+  const {
+    theme,
+    activePanel,
+    setActivePanel,
+    showSearch,
+    showSettings,
+    showTaskDetail,
+    loadSettings,
+  } = useUIStore()
+  const { setServerUrl, setDisplayName, myStatus } = useConnectionStore()
   const [isSetup, setIsSetup] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -80,7 +93,7 @@ export default function App() {
           fontSize: 13,
         }}
       >
-        Loading…
+        Loading...
       </div>
     )
   }
@@ -99,6 +112,9 @@ export default function App() {
       style={{ flexDirection: 'column' }}
     >
       <TitleBar panelTitle={PANEL_TITLES[activePanel]} />
+
+      {/* Pending user banner */}
+      {myStatus === 'pending' && <PendingBanner />}
 
       {/* Body: sidebar + panel */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -119,10 +135,16 @@ export default function App() {
           {activePanel === NAV_PANELS.FILES && <FilesPanel />}
           {activePanel === NAV_PANELS.CALENDAR && <CalendarPanel />}
           {activePanel === NAV_PANELS.LLM && <LLMPanel />}
+          {activePanel === NAV_PANELS.ACTIVITY && <ActivityPanel />}
         </div>
       </div>
 
       <StatusBar />
+
+      {/* Overlays */}
+      {showSearch && <SearchOverlay />}
+      {showSettings && <SettingsPanel />}
+      {showTaskDetail && <TaskDetailPanel />}
     </div>
   )
 }

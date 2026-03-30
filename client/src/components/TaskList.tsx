@@ -2,46 +2,16 @@
 import React from 'react'
 import TaskItem from './TaskItem'
 import { useTaskStore } from '../store/taskStore'
+import { useUIStore } from '../store/uiStore'
+import EmptyState from './shared/EmptyState'
 
 export default function TaskList({ groupId = null }) {
   const getFilteredTasks = useTaskStore((s) => s.getFilteredTasks)
-  const tasks = getFilteredTasks(groupId)
+  const showCompleted = useUIStore((s) => s.showCompleted)
+  const tasks = getFilteredTasks(groupId, showCompleted)
 
   if (tasks.length === 0) {
-    return (
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 8,
-          color: 'var(--text-secondary)',
-          padding: 24,
-        }}
-      >
-        <svg
-          width="36"
-          height="36"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          style={{ opacity: 0.4 }}
-        >
-          <path d="M9 11l3 3L22 4" />
-          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-        </svg>
-        <span style={{ fontSize: 13, textAlign: 'center', opacity: 0.6 }}>
-          No tasks yet.
-          <br />
-          Add one above!
-        </span>
-      </div>
-    )
+    return <EmptyState type="tasks" style={{ flex: 1 }} />
   }
 
   const incomplete = tasks.filter((t) => !t.completed)

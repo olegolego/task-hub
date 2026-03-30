@@ -145,15 +145,31 @@ const LLMIcon = () => (
   </svg>
 )
 
+const ActivityIcon = () => (
+  <svg
+    width="15"
+    height="15"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+  </svg>
+)
+
 const NAV_ITEMS = [
-  { id: NAV_PANELS.TASKS, title: 'Tasks', icon: TasksIcon },
-  { id: NAV_PANELS.IDEAS, title: 'Ideas', icon: IdeasIcon },
-  { id: NAV_PANELS.GROUPS, title: 'Groups', icon: GroupsIcon },
-  { id: NAV_PANELS.PEOPLE, title: 'People', icon: PeopleIcon },
-  { id: NAV_PANELS.MESSAGES, title: 'Messages', icon: MessagesIcon },
-  { id: NAV_PANELS.FILES, title: 'Files', icon: FilesIcon },
-  { id: NAV_PANELS.CALENDAR, title: 'Calendar', icon: CalendarIcon },
-  { id: NAV_PANELS.LLM, title: 'AI Assistant', icon: LLMIcon },
+  { id: NAV_PANELS.TASKS, title: 'Tasks (Cmd+1)', icon: TasksIcon },
+  { id: NAV_PANELS.IDEAS, title: 'Ideas (Cmd+2)', icon: IdeasIcon },
+  { id: NAV_PANELS.GROUPS, title: 'Groups (Cmd+3)', icon: GroupsIcon },
+  { id: NAV_PANELS.PEOPLE, title: 'People (Cmd+4)', icon: PeopleIcon },
+  { id: NAV_PANELS.MESSAGES, title: 'Messages (Cmd+5)', icon: MessagesIcon },
+  { id: NAV_PANELS.FILES, title: 'Files (Cmd+6)', icon: FilesIcon },
+  { id: NAV_PANELS.CALENDAR, title: 'Calendar (Cmd+7)', icon: CalendarIcon },
+  { id: NAV_PANELS.LLM, title: 'AI Assistant (Cmd+8)', icon: LLMIcon },
+  { id: NAV_PANELS.ACTIVITY, title: 'Activity (Cmd+9)', icon: ActivityIcon },
 ]
 
 export default function Sidebar({ activePanel, onPanelChange }) {

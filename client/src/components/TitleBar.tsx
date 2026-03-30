@@ -1,6 +1,6 @@
 // @ts-nocheck
 import React from 'react'
-import { useTaskStore } from '../store/taskStore'
+import { useUIStore } from '../store/uiStore'
 
 export default function TitleBar({ panelTitle = 'TASKS' }) {
   const {
@@ -12,7 +12,9 @@ export default function TitleBar({ panelTitle = 'TASKS' }) {
     theme,
     toggleShowCompleted,
     showCompleted,
-  } = useTaskStore()
+    toggleSearch,
+    toggleSettings,
+  } = useUIStore()
 
   return (
     <div
@@ -38,6 +40,11 @@ export default function TitleBar({ panelTitle = 'TASKS' }) {
       </div>
 
       <div className="flex items-center gap-1 no-drag">
+        {/* Search button */}
+        <IconButton title="Search (Cmd+K)" onClick={toggleSearch}>
+          <SearchIcon />
+        </IconButton>
+
         <IconButton
           title={showCompleted ? 'Hide completed' : 'Show completed'}
           onClick={toggleShowCompleted}
@@ -48,6 +55,11 @@ export default function TitleBar({ panelTitle = 'TASKS' }) {
 
         <IconButton title="Toggle theme" onClick={toggleTheme}>
           {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+        </IconButton>
+
+        {/* Settings button */}
+        <IconButton title="Settings (Cmd+,)" onClick={toggleSettings}>
+          <SettingsIcon />
         </IconButton>
 
         <IconButton
@@ -105,6 +117,37 @@ function IconButton({ children, onClick, title, active, danger }) {
     </button>
   )
 }
+
+const SearchIcon = () => (
+  <svg
+    width="13"
+    height="13"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+  >
+    <circle cx="11" cy="11" r="8" />
+    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+  </svg>
+)
+
+const SettingsIcon = () => (
+  <svg
+    width="13"
+    height="13"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+  </svg>
+)
 
 const CheckIcon = () => (
   <svg

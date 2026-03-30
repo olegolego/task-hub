@@ -13,7 +13,12 @@ import type { ClientInfo } from './auth/permissions.js'
 
 const log = createLogger('server')
 
+const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE || '52428800', 10) // 50MB default
 const clients = new Map<WebSocket, ClientInfo>()
+
+// Cache group member lookups to avoid re-querying on every broadcast
+const groupMemberCache = new Map<string, { memberIds: Set<string>; expiresAt: number }>()
+const GROUP_CACHE_TTL = 5000 // 5 seconds
 
 export function createServer() {
   initDb()
@@ -58,9 +63,20 @@ export function createServer() {
       const mimeType = params.get('mime') || 'application/octet-stream'
       const fileSize = parseInt(params.get('size') || '0', 10)
 
+      let receivedBytes = 0
       const chunks: Buffer[] = []
-      req.on('data', (c: Buffer) => chunks.push(c))
+      req.on('data', (c: Buffer) => {
+        receivedBytes += c.length
+        if (receivedBytes > MAX_FILE_SIZE) {
+          res.writeHead(413, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: `File exceeds maximum size of ${MAX_FILE_SIZE} bytes` }))
+          req.destroy()
+          return
+        }
+        chunks.push(c)
+      })
       req.on('end', () => {
+        if (receivedBytes > MAX_FILE_SIZE) return
         const buf = Buffer.concat(chunks)
         const fileId = uuidv4()
         const storedPath = path.join(uploadsDir, fileId)
@@ -115,9 +131,20 @@ export function createServer() {
       const fileSize = parseInt(params.get('size') || '0', 10)
       const folder = params.get('folder') || 'General'
 
+      let receivedBytes = 0
       const chunks: Buffer[] = []
-      req.on('data', (c: Buffer) => chunks.push(c))
+      req.on('data', (c: Buffer) => {
+        receivedBytes += c.length
+        if (receivedBytes > MAX_FILE_SIZE) {
+          res.writeHead(413, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: `File exceeds maximum size of ${MAX_FILE_SIZE} bytes` }))
+          req.destroy()
+          return
+        }
+        chunks.push(c)
+      })
       req.on('end', () => {
+        if (receivedBytes > MAX_FILE_SIZE) return
         const buf = Buffer.concat(chunks)
         const fileId = uuidv4()
         const storedPath = path.join(companyFilesDir, fileId)
@@ -358,20 +385,29 @@ function broadcastToAdmins(message: unknown, excludeWs: WebSocket | null = null)
 }
 
 function broadcastToGroup(message: unknown, groupId: string, excludeWs: WebSocket | null = null) {
-  const db = getDb()
-  const members = db
-    .prepare('SELECT user_id FROM group_members WHERE group_id = ?')
-    .all(groupId) as {
-    user_id: string
-  }[]
-  const memberIds = new Set(members.map((m) => m.user_id))
+  const now = Date.now()
+  let cached = groupMemberCache.get(groupId)
+
+  if (!cached || cached.expiresAt < now) {
+    const db = getDb()
+    const members = db
+      .prepare('SELECT user_id FROM group_members WHERE group_id = ?')
+      .all(groupId) as { user_id: string }[]
+    cached = { memberIds: new Set(members.map((m) => m.user_id)), expiresAt: now + GROUP_CACHE_TTL }
+    groupMemberCache.set(groupId, cached)
+  }
 
   const data = JSON.stringify(message)
   for (const [ws, info] of clients) {
-    if (ws !== excludeWs && ws.readyState === 1 && memberIds.has(info.id)) {
+    if (ws !== excludeWs && ws.readyState === 1 && cached.memberIds.has(info.id)) {
       ws.send(data)
     }
   }
+}
+
+// Invalidate group member cache when membership changes
+export function invalidateGroupCache(groupId: string) {
+  groupMemberCache.delete(groupId)
 }
 
 function sendInitialState(ws: WebSocket, user: ClientInfo) {
@@ -488,4 +524,4 @@ function shutdown() {
 process.on('SIGINT', shutdown)
 process.on('SIGTERM', shutdown)
 
-export { broadcast, broadcastToGroup, clients }
+export { broadcast, broadcastToGroup, clients, invalidateGroupCache }

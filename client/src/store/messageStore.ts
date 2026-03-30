@@ -85,5 +85,18 @@ export const useMessageStore = create((set, get) => ({
       return { threads: newThreads }
     }),
 
+  setReactions: (dmId, reactions) =>
+    set((s) => {
+      const newThreads = {}
+      for (const [uid, msgs] of Object.entries(s.threads)) {
+        newThreads[uid] = msgs.map((m) => (m.id === dmId ? { ...m, reactions } : m))
+      }
+      return { threads: newThreads }
+    }),
+
+  reactToMessage: (dmId, emoji) => {
+    ipc.sendMessage({ type: 'dm:react', payload: { dmId, emoji } })
+  },
+
   totalUnread: () => Object.values(get().unreadCounts).reduce((a, b) => a + b, 0),
 }))

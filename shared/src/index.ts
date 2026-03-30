@@ -75,6 +75,9 @@ export const MESSAGE_TYPES = {
   FILES_FOLDER_CREATED: 'files:folder_created',
   FILES_DELETE_FOLDER: 'files:delete_folder',
   FILES_FOLDER_DELETED: 'files:folder_deleted',
+  // Activity feed
+  ACTIVITY_LIST: 'activity:list',
+  ACTIVITY_LIST_RESPONSE: 'activity:list_response',
   // System
   AUTH_CHALLENGE: 'auth:challenge',
   AUTH_RESPONSE: 'auth:response',

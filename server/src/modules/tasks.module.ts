@@ -9,6 +9,7 @@ import {
 import { validatePayload } from '../middleware/validate.js'
 import { canModifyTask, canDeleteResource } from '../auth/permissions.js'
 import { createLogger } from '../utils/logger.js'
+import { logActivity } from './activity.module.js'
 import type { ServerModule, ModuleContext } from './types.js'
 
 const log = createLogger('tasks')
@@ -60,6 +61,15 @@ const tasksModule: ServerModule = {
           }
         }
       }
+      logActivity(
+        db,
+        clientInfo.id,
+        'task:create',
+        'task',
+        task.id,
+        `Created task "${task.title}"`,
+        task.group_id,
+      )
       log.info('Task created', { id: task.id, title: task.title })
     } else if (type === 'task:update') {
       const data = validatePayload(updateTaskSchema, payload, ws)
@@ -154,6 +164,15 @@ const tasksModule: ServerModule = {
         const outMsg = { type: 'task:deleted', id: data.id }
         if (task.group_id) broadcastToGroup(outMsg, task.group_id as string)
         else broadcast(outMsg)
+        logActivity(
+          db,
+          clientInfo.id,
+          'task:delete',
+          'task',
+          data.id,
+          `Deleted a task`,
+          task.group_id as string | null,
+        )
         log.info('Task deleted', { id: data.id })
       }
     } else if (type === 'task:assign') {
