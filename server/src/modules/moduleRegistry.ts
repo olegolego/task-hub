@@ -12,6 +12,7 @@ import groupChatModule from './groupChat.module.js'
 import meetingsModule from './meetings.module.js'
 import llmModule from './llm.module.js'
 import llmChatModule from './llmChat.module.js'
+import activityModule from './activity.module.js'
 
 const log = createLogger('registry')
 
@@ -26,6 +27,7 @@ const MODULES: ServerModule[] = [
   meetingsModule,
   llmModule,
   llmChatModule,
+  activityModule,
 ]
 
 export const moduleRegistry = {

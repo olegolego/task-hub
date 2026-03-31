@@ -1,15 +1,11 @@
 // @ts-nocheck
 import { create } from 'zustand'
 import { ipc } from '../utils/ipc'
-import { parseTaskInput } from '../utils/constants'
 import { v4 as uuidv4 } from 'uuid'
 
 export const useTaskStore = create((set, get) => ({
   tasks: [],
-  theme: 'dark',
-  showCompleted: true,
   activeCategory: 'all',
-  isPinned: true,
   inputRef: null,
 
   setInputRef: (ref) => set({ inputRef: ref }),
@@ -40,8 +36,7 @@ export const useTaskStore = create((set, get) => ({
     })),
 
   loadSettings: async () => {
-    const pinned = await ipc.getPinState()
-    set({ isPinned: pinned })
+    // UI settings now handled by uiStore
   },
 
   addTask: async (title, priority = 'medium', groupId = null) => {
@@ -100,20 +95,8 @@ export const useTaskStore = create((set, get) => ({
 
   setActiveCategory: (cat) => set({ activeCategory: cat }),
 
-  toggleShowCompleted: () => set((s) => ({ showCompleted: !s.showCompleted })),
-
-  toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
-
-  togglePin: async () => {
-    const pinned = await ipc.togglePin()
-    set({ isPinned: pinned })
-  },
-
-  minimizeWindow: () => ipc.minimizeWindow(),
-  closeWindow: () => ipc.closeWindow(),
-
-  getFilteredTasks: (groupId = null) => {
-    const { tasks, showCompleted } = get()
+  getFilteredTasks: (groupId = null, showCompleted = true) => {
+    const { tasks } = get()
     return tasks
       .filter((t) => (groupId === null ? !t.group_id : t.group_id === groupId))
       .filter((t) => showCompleted || !t.completed)

@@ -2,14 +2,20 @@
 import React, { useState, useRef, useEffect, memo } from 'react'
 import { PRIORITIES } from '../utils/constants'
 import { useTaskStore } from '../store/taskStore'
+import { useUIStore } from '../store/uiStore'
+import { useUserStore } from '../store/userStore'
+import ConfirmDialog from './shared/ConfirmDialog'
 
 const TaskItem = memo(function TaskItem({ task }) {
   const { toggleTask, updateTaskTitle, updateTaskPriority, deleteTask } = useTaskStore()
+  const openTaskDetail = useUIStore((s) => s.openTaskDetail)
+  const users = useUserStore((s) => s.users)
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState(task.title)
   const [hovered, setHovered] = useState(false)
   const [showPriorityMenu, setShowPriorityMenu] = useState(false)
   const [bouncing, setBouncing] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const editRef = useRef(null)
 
   useEffect(() => {
@@ -46,8 +52,20 @@ const TaskItem = memo(function TaskItem({ task }) {
     setShowPriorityMenu(false)
   }
 
+  function handleDelete() {
+    setShowDeleteConfirm(true)
+    setShowPriorityMenu(false)
+  }
+
+  function confirmDelete() {
+    deleteTask(task.id)
+    setShowDeleteConfirm(false)
+  }
+
   const priorityColor = PRIORITIES[task.priority]?.color ?? '#8d99ae'
   const isCompleted = Boolean(task.completed)
+  const assignedUser = task.assigned_to ? users.find((u) => u.id === task.assigned_to) : null
+  const isOverdue = task.due_date && !isCompleted && new Date(task.due_date) < new Date()
 
   return (
     <div
@@ -124,7 +142,7 @@ const TaskItem = memo(function TaskItem({ task }) {
         }}
       />
 
-      {/* Title */}
+      {/* Title area - clickable to open detail */}
       {editing ? (
         <input
           ref={editRef}
@@ -145,28 +163,75 @@ const TaskItem = memo(function TaskItem({ task }) {
           }}
         />
       ) : (
-        <span
+        <div
+          style={{ flex: 1, overflow: 'hidden', cursor: 'pointer' }}
+          onClick={() => openTaskDetail(task.id)}
           onDoubleClick={startEdit}
-          style={{
-            flex: 1,
-            fontSize: 13,
-            color: isCompleted ? 'var(--completed)' : 'var(--text-primary)',
-            textDecoration: isCompleted ? 'line-through' : 'none',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            transition: 'color 0.15s',
-            cursor: 'text',
-          }}
         >
-          {task.title}
-        </span>
+          <span
+            style={{
+              fontSize: 13,
+              color: isCompleted ? 'var(--completed)' : 'var(--text-primary)',
+              textDecoration: isCompleted ? 'line-through' : 'none',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              display: 'block',
+              transition: 'color 0.15s',
+            }}
+          >
+            {task.title}
+          </span>
+          {/* Meta row: due date and assigned user */}
+          {(task.due_date || assignedUser) && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 2, alignItems: 'center' }}>
+              {task.due_date && (
+                <span
+                  style={{
+                    fontSize: 10,
+                    color: isOverdue ? '#f72585' : 'var(--text-secondary)',
+                    fontWeight: isOverdue ? 600 : 400,
+                  }}
+                >
+                  {isOverdue ? 'Overdue: ' : ''}
+                  {new Date(task.due_date).toLocaleDateString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </span>
+              )}
+              {assignedUser && (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <span
+                    style={{
+                      width: 12,
+                      height: 12,
+                      borderRadius: '50%',
+                      background: assignedUser.avatar_color || '#4361ee',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 7,
+                      color: '#fff',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {(assignedUser.display_name || '?')[0].toUpperCase()}
+                  </span>
+                  <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
+                    {assignedUser.display_name}
+                  </span>
+                </span>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Delete button */}
       {hovered && !editing && (
         <button
-          onClick={() => deleteTask(task.id)}
+          onClick={handleDelete}
           title="Delete"
           style={{
             flexShrink: 0,
@@ -255,6 +320,42 @@ const TaskItem = memo(function TaskItem({ task }) {
           ))}
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', margin: '2px 0' }} />
           <button
+            onClick={() => {
+              openTaskDetail(task.id)
+              setShowPriorityMenu(false)
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+              padding: '4px 10px',
+              background: 'transparent',
+              border: 'none',
+              borderRadius: 4,
+              cursor: 'pointer',
+              color: 'var(--text-primary)',
+              fontSize: 12,
+              fontFamily: 'inherit',
+              whiteSpace: 'nowrap',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--hover)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            >
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+            Details
+          </button>
+          <button
             onClick={startEdit}
             style={{
               display: 'flex',
@@ -288,10 +389,7 @@ const TaskItem = memo(function TaskItem({ task }) {
             Edit
           </button>
           <button
-            onClick={() => {
-              deleteTask(task.id)
-              setShowPriorityMenu(false)
-            }}
+            onClick={handleDelete}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -328,6 +426,17 @@ const TaskItem = memo(function TaskItem({ task }) {
           </button>
         </div>
       )}
+
+      {/* Delete confirmation dialog */}
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="Delete task?"
+        message={`"${task.title}" will be permanently deleted.`}
+        confirmLabel="Delete"
+        danger
+        onConfirm={confirmDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   )
 })

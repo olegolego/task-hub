@@ -126,9 +126,22 @@ export default [
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
     },
   },
+  // Electron main-process files (Node.js / CommonJS)
+  {
+    files: ['client/electron/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'commonjs',
+      globals: nodeGlobals,
+    },
+    rules: {
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+    },
+  },
   // ESM JavaScript files
   {
     files: ['client/**/*.js', 'client/**/*.jsx', '**/*.mjs'],
+    ignores: ['client/electron/**'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',

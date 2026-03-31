@@ -10,6 +10,7 @@ import { useFilesStore } from '../store/filesStore'
 import { useGroupChatStore } from '../store/groupChatStore'
 import { useMeetingsStore } from '../store/meetingsStore'
 import { useLLMStore } from '../store/llmStore'
+import { useActivityStore } from '../store/activityStore'
 
 /**
  * Subscribes to IPC message and state events and routes them to the appropriate stores.
@@ -71,6 +72,10 @@ export function initMessageBus() {
 
       case 'idea:comments_response':
         useIdeaStore.getState().setComments(msg.ideaId, msg.comments)
+        break
+
+      case 'idea:deleted':
+        useIdeaStore.getState().removeIdea(msg.ideaId || msg.id)
         break
 
       // ── Groups ──────────────────────────────────────────────────────────────
@@ -293,6 +298,18 @@ export function initMessageBus() {
 
       case 'llm:error':
         useLLMStore.getState().setError(msg.error || 'Unknown LLM error')
+        break
+
+      // ── Activity feed ─────────────────────────────────────────────────────
+      case 'activity:list_response':
+        useActivityStore.getState().setActivities(msg.activities || [])
+        break
+
+      // ── DM reactions ────────────────────────────────────────────────────
+      case 'dm:reacted':
+        if (msg.dmId && msg.reactions) {
+          useMessageStore.getState().setReactions(msg.dmId, msg.reactions)
+        }
         break
 
       // ── Errors ──────────────────────────────────────────────────────────────

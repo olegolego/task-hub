@@ -1,8 +1,27 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, globalShortcut, dialog } = require('electron')
+const {
+  app,
+  BrowserWindow,
+  ipcMain,
+  Tray,
+  Menu,
+  nativeImage,
+  globalShortcut,
+  dialog,
+  Notification,
+} = require('electron')
 const path = require('path')
 const http = require('http')
 const fs = require('fs')
-const { getOrCreateKeypair, getOrCreateEncryptionKeypair, encryptDM, decryptDM, encryptFile, decryptFile, loadConfig, saveConfig } = require('./crypto')
+const {
+  getOrCreateKeypair,
+  getOrCreateEncryptionKeypair,
+  encryptDM,
+  decryptDM,
+  encryptFile,
+  decryptFile,
+  loadConfig,
+  saveConfig,
+} = require('./crypto')
 const { createWsClient } = require('./wsClient')
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
@@ -15,7 +34,33 @@ let wsClient = null
 
 // Cache of userId → encPublicKey for DM encryption (populated from sync:response)
 const encPubKeyCache = new Map()
+// Cache userId → displayName for notifications
+const userNameCache = new Map()
 let myUserId = null
+
+// ── Desktop notifications ────────────────────────────────────────────────────
+
+function showNotification(title, body, onClick) {
+  if (!Notification.isSupported()) return
+  const notif = new Notification({ title, body, silent: false })
+  notif.on('click', () => {
+    if (mainWindow) {
+      mainWindow.show()
+      mainWindow.focus()
+    }
+    if (onClick) onClick()
+  })
+  notif.show()
+  return notif
+}
+
+function shouldNotify(type) {
+  const config = loadConfig()
+  if (type === 'dm' && config.notifyDM === false) return false
+  if (type === 'task' && config.notifyTask === false) return false
+  if (type === 'meeting' && config.notifyMeeting === false) return false
+  return true
+}
 
 // Last known connection state + last sync/auth messages — replayed when renderer comes online
 let lastConnectionState = 'offline'
@@ -57,7 +102,6 @@ function createMainWindow() {
   mainWindow.webContents.on('did-fail-load', (_, errorCode, errorDescription) => {
     console.error('[Main] Window failed to load:', errorCode, errorDescription)
   })
-
 
   mainWindow.on('close', (e) => {
     e.preventDefault()
@@ -164,12 +208,66 @@ function startWsClient(serverUrl, displayName) {
         encPubKeyCache.set(msg.user.id, msg.user.enc_public_key)
       }
 
-      // Cache enc public keys from sync response
+      // Cache enc public keys and display names from sync response
       if (msg.type === 'sync:response' && msg.data?.users) {
         for (const u of msg.data.users) {
           if (u.enc_public_key) encPubKeyCache.set(u.id, u.enc_public_key)
+          if (u.display_name) userNameCache.set(u.id, u.display_name)
         }
         lastSyncMessage = msg
+      }
+
+      // Notifications for incoming DMs (only if window is not focused)
+      if (msg.type === 'dm:received' && msg.dm && msg.dm.fromUserId !== myUserId) {
+        const isWindowFocused = mainWindow?.isFocused()
+        if (!isWindowFocused && shouldNotify('dm')) {
+          const senderName = userNameCache.get(msg.dm.fromUserId) || 'Someone'
+          const body = msg.dm.fileId
+            ? 'Sent you a file'
+            : msg.dm.text?.slice(0, 80) || 'New message'
+          showNotification(`Message from ${senderName}`, body)
+        }
+      }
+
+      // Notifications for task assignments
+      if (
+        msg.type === 'task:created' &&
+        msg.task?.assigned_to === myUserId &&
+        msg.task?.created_by !== myUserId
+      ) {
+        if (shouldNotify('task')) {
+          const assignerName = userNameCache.get(msg.task.created_by) || 'Someone'
+          showNotification(`Task assigned by ${assignerName}`, msg.task.title)
+        }
+      }
+      if (msg.type === 'task:updated' && msg.task?.assigned_to === myUserId) {
+        // Notify if newly assigned to me
+        if (shouldNotify('task') && !mainWindow?.isFocused()) {
+          showNotification('Task updated', msg.task.title)
+        }
+      }
+
+      // Notifications for meeting invites
+      if (msg.type === 'meeting:created' && msg.meeting) {
+        const isAttendee = msg.meeting.attendees?.some((a) => a.userId === myUserId)
+        if (isAttendee && msg.meeting.created_by !== myUserId && shouldNotify('meeting')) {
+          const creatorName = userNameCache.get(msg.meeting.created_by) || 'Someone'
+          showNotification(`Meeting from ${creatorName}`, msg.meeting.title)
+        }
+      }
+
+      // Notification for group invites
+      if (msg.type === 'group:invite_received') {
+        const fromName = msg.fromName || 'Someone'
+        showNotification(
+          `Group invite from ${fromName}`,
+          `Invited you to ${msg.groupName || 'a group'}`,
+        )
+      }
+
+      // Notification for user approval (for the approved user)
+      if (msg.type === 'user:approved' && !msg.userId) {
+        showNotification('Access Approved', 'An admin has approved your account. Welcome!')
       }
 
       // Decrypt incoming DM before forwarding to renderer
@@ -184,7 +282,9 @@ function startWsClient(serverUrl, displayName) {
           const otherEncPubKey = encPubKeyCache.get(otherUserId)
           const myEncKeypair = getOrCreateEncryptionKeypair()
           if (otherEncPubKey && myEncKeypair) {
-            dm.text = decryptDM(dm.encrypted, dm.nonce, otherEncPubKey, myEncKeypair.secretKeyB64) ?? '[decryption failed]'
+            dm.text =
+              decryptDM(dm.encrypted, dm.nonce, otherEncPubKey, myEncKeypair.secretKeyB64) ??
+              '[decryption failed]'
           } else {
             dm.text = '[missing encryption key]'
           }
@@ -199,7 +299,9 @@ function startWsClient(serverUrl, displayName) {
         const otherEncPubKey = encPubKeyCache.get(otherUserId)
         const myEncKeypair = getOrCreateEncryptionKeypair()
         if (otherEncPubKey && myEncKeypair && msg.encrypted && msg.nonce) {
-          msg.text = decryptDM(msg.encrypted, msg.nonce, otherEncPubKey, myEncKeypair.secretKeyB64) ?? '[decryption failed]'
+          msg.text =
+            decryptDM(msg.encrypted, msg.nonce, otherEncPubKey, myEncKeypair.secretKeyB64) ??
+            '[decryption failed]'
         }
         delete msg.encrypted
         delete msg.nonce
@@ -216,7 +318,9 @@ function startWsClient(serverUrl, displayName) {
             const otherUserId = dm.fromUserId === myUserId ? dm.toUserId : dm.fromUserId
             const otherEncPubKey = encPubKeyCache.get(otherUserId)
             if (otherEncPubKey && myEncKeypair) {
-              dm.text = decryptDM(dm.encrypted, dm.nonce, otherEncPubKey, myEncKeypair.secretKeyB64) ?? '[decryption failed]'
+              dm.text =
+                decryptDM(dm.encrypted, dm.nonce, otherEncPubKey, myEncKeypair.secretKeyB64) ??
+                '[decryption failed]'
             } else {
               dm.text = '[missing encryption key]'
             }
@@ -382,10 +486,12 @@ ipcMain.handle('dm:edit', (_, { dmId, newText, toUserId }) => {
 })
 
 ipcMain.handle('dm:history', (_, { withUserId, limit }) => {
-  return wsClient?.send({
-    type: 'dm:history',
-    payload: { withUserId, limit: limit ?? 50 },
-  }) ?? false
+  return (
+    wsClient?.send({
+      type: 'dm:history',
+      payload: { withUserId, limit: limit ?? 50 },
+    }) ?? false
+  )
 })
 
 // ── IPC: File sharing ──────────────────────────────────────────────────────────
@@ -398,17 +504,30 @@ function getHttpBase() {
 function httpPost(url, buffer, headers) {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url)
-    const req = http.request({
-      hostname: parsed.hostname,
-      port: parsed.port || 80,
-      path: parsed.pathname + parsed.search,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/octet-stream', 'Content-Length': buffer.length, ...headers },
-    }, (res) => {
-      let data = ''
-      res.on('data', (c) => data += c)
-      res.on('end', () => { try { resolve(JSON.parse(data)) } catch { reject(new Error(data)) } })
-    })
+    const req = http.request(
+      {
+        hostname: parsed.hostname,
+        port: parsed.port || 80,
+        path: parsed.pathname + parsed.search,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'Content-Length': buffer.length,
+          ...headers,
+        },
+      },
+      (res) => {
+        let data = ''
+        res.on('data', (c) => (data += c))
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(data))
+          } catch {
+            reject(new Error(data))
+          }
+        })
+      },
+    )
     req.on('error', reject)
     req.write(buffer)
     req.end()
@@ -417,12 +536,14 @@ function httpPost(url, buffer, headers) {
 
 function httpGet(url) {
   return new Promise((resolve, reject) => {
-    http.get(url, (res) => {
-      const chunks = []
-      res.on('data', (c) => chunks.push(c))
-      res.on('end', () => resolve(Buffer.concat(chunks)))
-      res.on('error', reject)
-    }).on('error', reject)
+    http
+      .get(url, (res) => {
+        const chunks = []
+        res.on('data', (c) => chunks.push(c))
+        res.on('end', () => resolve(Buffer.concat(chunks)))
+        res.on('error', reject)
+      })
+      .on('error', reject)
   })
 }
 
@@ -440,7 +561,11 @@ ipcMain.handle('file:sendDM', async (_, { toUserId }) => {
   const mimeType = guessMime(fileName)
 
   const myEncKeypair = getOrCreateEncryptionKeypair()
-  const { blob, encFileKey, fileKeyNonce } = encryptFile(fileBuffer, recipientEncPubKey, myEncKeypair.secretKeyB64)
+  const { blob, encFileKey, fileKeyNonce } = encryptFile(
+    fileBuffer,
+    recipientEncPubKey,
+    myEncKeypair.secretKeyB64,
+  )
 
   const base = getHttpBase()
   const uploadUrl = `${base}/upload?name=${encodeURIComponent(fileName)}&mime=${encodeURIComponent(mimeType)}&size=${fileBuffer.length}`
@@ -448,29 +573,46 @@ ipcMain.handle('file:sendDM', async (_, { toUserId }) => {
 
   const sent = wsClient?.send({
     type: 'dm:send',
-    payload: { toUserId, fileId, fileName, fileSize: fileBuffer.length, mimeType, encFileKey, fileKeyNonce },
+    payload: {
+      toUserId,
+      fileId,
+      fileName,
+      fileSize: fileBuffer.length,
+      mimeType,
+      encFileKey,
+      fileKeyNonce,
+    },
   })
   return { ok: !!sent }
 })
 
 // Renderer asks to download and decrypt a file from a DM
-ipcMain.handle('file:downloadDM', async (_, { fileId, fileName, encFileKey, fileKeyNonce, fromUserId }) => {
-  const senderEncPubKey = encPubKeyCache.get(fromUserId)
-  if (!senderEncPubKey) return { ok: false, error: 'No encryption key for sender' }
+ipcMain.handle(
+  'file:downloadDM',
+  async (_, { fileId, fileName, encFileKey, fileKeyNonce, fromUserId }) => {
+    const senderEncPubKey = encPubKeyCache.get(fromUserId)
+    if (!senderEncPubKey) return { ok: false, error: 'No encryption key for sender' }
 
-  const saveResult = await dialog.showSaveDialog({ defaultPath: fileName })
-  if (saveResult.canceled) return { ok: false, canceled: true }
+    const saveResult = await dialog.showSaveDialog({ defaultPath: fileName })
+    if (saveResult.canceled) return { ok: false, canceled: true }
 
-  const base = getHttpBase()
-  const blob = await httpGet(`${base}/files/${fileId}`)
+    const base = getHttpBase()
+    const blob = await httpGet(`${base}/files/${fileId}`)
 
-  const myEncKeypair = getOrCreateEncryptionKeypair()
-  const decrypted = decryptFile(blob, encFileKey, fileKeyNonce, senderEncPubKey, myEncKeypair.secretKeyB64)
-  if (!decrypted) return { ok: false, error: 'Decryption failed' }
+    const myEncKeypair = getOrCreateEncryptionKeypair()
+    const decrypted = decryptFile(
+      blob,
+      encFileKey,
+      fileKeyNonce,
+      senderEncPubKey,
+      myEncKeypair.secretKeyB64,
+    )
+    if (!decrypted) return { ok: false, error: 'Decryption failed' }
 
-  fs.writeFileSync(saveResult.filePath, decrypted)
-  return { ok: true, savedTo: saveResult.filePath }
-})
+    fs.writeFileSync(saveResult.filePath, decrypted)
+    return { ok: true, savedTo: saveResult.filePath }
+  },
+)
 
 // ── IPC: Company Files ────────────────────────────────────────────────────────
 
@@ -502,12 +644,20 @@ ipcMain.handle('company-file:download', async (_, { fileId, fileName }) => {
 function guessMime(fileName) {
   const ext = path.extname(fileName).toLowerCase()
   const map = {
-    '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-    '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml',
-    '.pdf': 'application/pdf', '.zip': 'application/zip',
-    '.mp4': 'video/mp4', '.mp3': 'audio/mpeg',
-    '.txt': 'text/plain', '.md': 'text/markdown',
-    '.json': 'application/json', '.csv': 'text/csv',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+    '.pdf': 'application/pdf',
+    '.zip': 'application/zip',
+    '.mp4': 'video/mp4',
+    '.mp3': 'audio/mpeg',
+    '.txt': 'text/plain',
+    '.md': 'text/markdown',
+    '.json': 'application/json',
+    '.csv': 'text/csv',
   }
   return map[ext] || 'application/octet-stream'
 }

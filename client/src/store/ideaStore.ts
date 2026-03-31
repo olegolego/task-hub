@@ -19,7 +19,12 @@ export const useIdeaStore = create((set, get) => ({
       ideas: s.ideas.map((i) => (i.id === idea.id ? { ...i, ...idea } : i)),
     })),
 
-  applyVoteFromServer: ({ ideaId, userId, vote, voteCount }) =>
+  removeIdea: (ideaId) =>
+    set((s) => ({
+      ideas: s.ideas.filter((i) => i.id !== ideaId),
+    })),
+
+  applyVoteFromServer: ({ ideaId, _userId, _vote, voteCount }) =>
     set((s) => ({
       ideas: s.ideas.map((i) => (i.id === ideaId ? { ...i, vote_count: voteCount } : i)),
     })),
