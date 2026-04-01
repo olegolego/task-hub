@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React from 'react'
 import { NAV_PANELS } from '../../utils/constants'
 import { useMessageStore } from '../../store/messageStore'
@@ -156,7 +155,12 @@ const NAV_ITEMS = [
   { id: NAV_PANELS.LLM, title: 'AI Assistant', icon: LLMIcon },
 ]
 
-export default function Sidebar({ activePanel, onPanelChange }) {
+interface SidebarProps {
+  activePanel: string
+  onPanelChange: (panel: string) => void
+}
+
+export default function Sidebar({ activePanel, onPanelChange }: SidebarProps) {
   const totalDmUnread = useMessageStore((s) => s.totalUnread())
   const totalGroupUnread = useGroupChatStore((s) => s.totalUnread())
   const myId = useConnectionStore((s) => s.myUserId)
@@ -206,7 +210,15 @@ export default function Sidebar({ activePanel, onPanelChange }) {
   )
 }
 
-function SidebarIcon({ children, onClick, title, active, badge }) {
+interface SidebarIconProps {
+  children: React.ReactNode
+  onClick: () => void
+  title: string
+  active: boolean
+  badge: number
+}
+
+function SidebarIcon({ children, onClick, title, active, badge }: SidebarIconProps) {
   return (
     <button
       onClick={onClick}

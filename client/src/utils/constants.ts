@@ -1,12 +1,13 @@
-// @ts-nocheck
+import type { PriorityKey } from '@task-hub/shared'
+
 export const PRIORITIES = {
   urgent: { label: 'Urgent', color: '#f72585' },
   high: { label: 'High', color: '#ef476f' },
   medium: { label: 'Medium', color: '#ffd166' },
   low: { label: 'Low', color: '#06d6a0' },
-}
+} as const
 
-export const PRIORITY_SYNTAX = {
+export const PRIORITY_SYNTAX: Record<string, PriorityKey> = {
   '!urgent': 'urgent',
   '!u': 'urgent',
   '!high': 'high',
@@ -18,7 +19,7 @@ export const PRIORITY_SYNTAX = {
 }
 
 // Parse inline priority syntax from task title: "Buy milk !high" → { title: "Buy milk", priority: "high" }
-export function parseTaskInput(raw) {
+export function parseTaskInput(raw: string): { title: string; priority: PriorityKey } {
   const input = raw.trim()
   for (const [token, priority] of Object.entries(PRIORITY_SYNTAX)) {
     if (input.toLowerCase().endsWith(' ' + token)) {
@@ -40,4 +41,4 @@ export const NAV_PANELS = {
   FILES: 'files',
   CALENDAR: 'calendar',
   LLM: 'llm',
-}
+} as const

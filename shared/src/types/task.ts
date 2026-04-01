@@ -5,7 +5,7 @@ export interface Task {
   title: string
   description?: string | null
   completed: number
-  priority: PriorityKey
+  priority: PriorityKey | string
   status: TaskStatusKey
   created_by: string
   assigned_to?: string | null

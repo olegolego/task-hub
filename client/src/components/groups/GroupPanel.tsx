@@ -1,7 +1,5 @@
-// @ts-nocheck
 import React, { useState, useEffect, useRef } from 'react'
 import { useGroupStore } from '../../store/groupStore'
-import { useTaskStore } from '../../store/taskStore'
 import { useUserStore } from '../../store/userStore'
 import { useConnectionStore } from '../../store/connectionStore'
 import { useGroupChatStore } from '../../store/groupChatStore'
@@ -31,22 +29,22 @@ export default function GroupPanel() {
   const [confirmLeave, setConfirmLeave] = useState(false)
   const [showInvite, setShowInvite] = useState(false)
   const [activeTab, setActiveTab] = useState('tasks')
-  const inviteRef = useRef(null)
+  const inviteRef = useRef<HTMLDivElement>(null)
   const users = useUserStore((s) => s.users)
   const unreadByGroup = useGroupChatStore((s) => s.unreadByGroup)
 
   // Close invite dropdown when clicking outside
   useEffect(() => {
     if (!showInvite) return
-    function handleClick(e) {
-      if (inviteRef.current && !inviteRef.current.contains(e.target)) setShowInvite(false)
+    function handleClick(e: MouseEvent) {
+      if (inviteRef.current && !inviteRef.current.contains(e.target as Node)) setShowInvite(false)
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [showInvite])
   const myUserId = useConnectionStore((s) => s.myUserId)
 
-  function handleCreateGroup(e) {
+  function handleCreateGroup(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const name = newGroupName.trim()
     if (!name) return
@@ -55,7 +53,7 @@ export default function GroupPanel() {
     setShowCreate(false)
   }
 
-  function handleJoinGroup(e) {
+  function handleJoinGroup(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const id = joinId.trim()
     if (!id) return
@@ -702,7 +700,12 @@ export default function GroupPanel() {
   )
 }
 
-function GroupRow({ group, onClick }) {
+interface GroupRowProps {
+  group: any
+  onClick: () => void
+}
+
+function GroupRow({ group, onClick }: GroupRowProps) {
   const [hovered, setHovered] = useState(false)
   return (
     <div
@@ -750,7 +753,12 @@ function GroupRow({ group, onClick }) {
   )
 }
 
-function ActionButton({ children, onClick }) {
+interface ActionButtonProps {
+  children: React.ReactNode
+  onClick: () => void
+}
+
+function ActionButton({ children, onClick }: ActionButtonProps) {
   return (
     <button
       onClick={onClick}
@@ -807,17 +815,22 @@ const BackIcon = () => (
   </svg>
 )
 
-function GroupChat({ groupId, myUserId }) {
+interface GroupChatProps {
+  groupId: string
+  myUserId: string
+}
+
+function GroupChat({ groupId, myUserId }: GroupChatProps) {
   const messages = useGroupChatStore((s) => s.messagesByGroup[groupId] ?? [])
   const sendMessage = useGroupChatStore((s) => s.sendMessage)
   const [input, setInput] = useState('')
-  const bottomRef = useRef(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  function handleKeyDown(e) {
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       submit()

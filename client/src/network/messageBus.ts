@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { ipc } from '../utils/ipc'
 import { useTaskStore } from '../store/taskStore'
 import { useIdeaStore } from '../store/ideaStore'
@@ -15,8 +14,11 @@ import { useLLMStore } from '../store/llmStore'
  * Subscribes to IPC message and state events and routes them to the appropriate stores.
  * Returns a cleanup function to remove listeners.
  */
+type ServerMessage = Record<string, any>
+
 export function initMessageBus() {
-  const cleanupMsg = ipc.onMessage((msg) => {
+  const cleanupMsg = ipc.onMessage((raw) => {
+    const msg = raw as ServerMessage
     const { type, data } = msg
 
     switch (type) {

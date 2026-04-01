@@ -1,9 +1,35 @@
-// @ts-nocheck
 import { create } from 'zustand'
 import { ipc } from '../utils/ipc'
 import { v4 as uuidv4 } from 'uuid'
+import type { Idea, IdeaComment, IdeaStatusKey } from '@task-hub/shared'
 
-export const useIdeaStore = create((set, get) => ({
+/** Idea extended with aggregated counts (computed server-side) */
+export interface IdeaWithCounts extends Idea {
+  vote_count: number
+  comment_count: number
+}
+
+interface IdeaStoreState {
+  ideas: IdeaWithCounts[]
+  commentsByIdea: Record<string, IdeaComment[]>
+}
+
+interface IdeaStoreActions {
+  setIdeas: (ideas: IdeaWithCounts[]) => void
+  addIdeaFromServer: (idea: IdeaWithCounts) => void
+  updateIdeaFromServer: (idea: Partial<IdeaWithCounts> & { id: string }) => void
+  applyVoteFromServer: (payload: Record<string, any>) => void
+  postIdea: (title: string, body?: string, groupId?: string | null, category?: string) => void
+  voteIdea: (ideaId: string, vote: number) => void
+  changeIdeaStatus: (ideaId: string, status: IdeaStatusKey | string) => void
+  setComments: (ideaId: string, comments: IdeaComment[]) => void
+  addComment: (comment: IdeaComment, commentCount?: number) => void
+  loadComments: (ideaId: string) => void
+  postComment: (ideaId: string, body: string) => void
+  getSortedIdeas: (groupId?: string | null) => IdeaWithCounts[]
+}
+
+export const useIdeaStore = create<IdeaStoreState & IdeaStoreActions>()((set, get) => ({
   ideas: [],
   commentsByIdea: {}, // ideaId → Comment[]
 
@@ -19,14 +45,14 @@ export const useIdeaStore = create((set, get) => ({
       ideas: s.ideas.map((i) => (i.id === idea.id ? { ...i, ...idea } : i)),
     })),
 
-  applyVoteFromServer: ({ ideaId, userId, vote, voteCount }) =>
+  applyVoteFromServer: ({ ideaId, userId: _userId, vote: _vote, voteCount }) =>
     set((s) => ({
       ideas: s.ideas.map((i) => (i.id === ideaId ? { ...i, vote_count: voteCount } : i)),
     })),
 
   postIdea: (title, body = '', groupId = null, category = 'general') => {
     const id = uuidv4()
-    const optimistic = {
+    const optimistic: IdeaWithCounts = {
       id,
       title,
       body,
@@ -36,7 +62,9 @@ export const useIdeaStore = create((set, get) => ({
       pinned: 0,
       vote_count: 0,
       comment_count: 0,
+      created_by: '',
       created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     }
     set((s) => ({ ideas: [optimistic, ...s.ideas] }))
     ipc.sendMessage({ type: 'idea:post', payload: { id, title, body, groupId, category } })

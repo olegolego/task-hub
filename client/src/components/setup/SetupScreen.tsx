@@ -1,8 +1,11 @@
-// @ts-nocheck
 import React, { useState, useEffect } from 'react'
 import { ipc } from '../../utils/ipc'
 
-export default function SetupScreen({ onComplete }) {
+interface SetupScreenProps {
+  onComplete: () => void
+}
+
+export default function SetupScreen({ onComplete }: SetupScreenProps) {
   const [displayName, setDisplayName] = useState('')
   const [serverUrl, setServerUrl] = useState('ws://localhost:8765')
   const [publicKey, setPublicKey] = useState('')
@@ -15,7 +18,7 @@ export default function SetupScreen({ onComplete }) {
     })
   }, [])
 
-  async function handleSubmit(e) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const name = displayName.trim()
     const url = serverUrl.trim()
@@ -34,7 +37,7 @@ export default function SetupScreen({ onComplete }) {
     try {
       await ipc.saveConfig({ displayName: name, serverUrl: url })
       onComplete?.()
-    } catch (err) {
+    } catch (err: any) {
       setError('Failed to save config: ' + err.message)
       setSaving(false)
     }
@@ -198,7 +201,12 @@ export default function SetupScreen({ onComplete }) {
   )
 }
 
-function FormField({ label, children }) {
+interface FormFieldProps {
+  label: string
+  children: React.ReactNode
+}
+
+function FormField({ label, children }: FormFieldProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <label
@@ -216,7 +224,7 @@ function FormField({ label, children }) {
   )
 }
 
-const inputStyle = {
+const inputStyle: React.CSSProperties = {
   background: 'var(--surface)',
   border: '1px solid rgba(255,255,255,0.1)',
   borderRadius: 6,

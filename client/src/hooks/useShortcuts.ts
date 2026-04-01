@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useEffect } from 'react'
 import { useTaskStore } from '../store/taskStore'
 import { ipc } from '../utils/ipc'
@@ -7,7 +6,7 @@ export function useShortcuts() {
   const { focusInput } = useTaskStore()
 
   useEffect(() => {
-    function onKeyDown(e) {
+    function onKeyDown(e: KeyboardEvent) {
       // Ctrl/Cmd+N — focus the add input
       if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
         e.preventDefault()

@@ -1,13 +1,16 @@
 import { v4 as uuidv4 } from 'uuid'
+import { execFileSync } from 'child_process'
 import * as fs from 'fs'
 import * as path from 'path'
 import { createLogger } from '../utils/logger.js'
+import { getDataDir } from '../db/database.js'
+import { config } from '../config.js'
 import type Database from 'better-sqlite3'
 import type { ServerModule, ModuleContext } from './types.js'
 
 const log = createLogger('llm')
 
-const LLM_SERVER_URL = process.env.LLM_SERVER_URL || 'http://localhost:8766'
+const LLM_SERVER_URL = config.LLM_SERVER_URL
 
 function buildTasksContext(db: Database.Database, userId: string): string {
   const tasks = db
@@ -93,7 +96,6 @@ function buildCompanyFilesContext(
       ((file.mime_type as string) || '').includes('pdf') || /\.pdf$/i.test(file.name as string)
     if (isPdf) {
       try {
-        const { execFileSync } = require('child_process')
         const text = execFileSync('pdftotext', [fullPath, '-'], {
           timeout: 10000,
           maxBuffer: 2 * 1024 * 1024,
@@ -187,7 +189,6 @@ const llmModule: ServerModule = {
       ws.send(JSON.stringify({ type: 'llm:thinking', requestId }))
 
       try {
-        const { getDataDir } = require('../db/database')
         const dataDir = getDataDir()
         const contextTypes = p.context || ['tasks']
 

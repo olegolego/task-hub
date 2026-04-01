@@ -1,8 +1,11 @@
-// @ts-nocheck
 import React from 'react'
 import { useTaskStore } from '../store/taskStore'
 
-export default function TitleBar({ panelTitle = 'TASKS' }) {
+interface TitleBarProps {
+  panelTitle?: string
+}
+
+export default function TitleBar({ panelTitle = 'TASKS' }: TitleBarProps) {
   const {
     isPinned,
     togglePin,
@@ -70,7 +73,15 @@ export default function TitleBar({ panelTitle = 'TASKS' }) {
   )
 }
 
-function IconButton({ children, onClick, title, active, danger }) {
+interface IconButtonProps {
+  children: React.ReactNode
+  onClick: () => void
+  title: string
+  active?: boolean
+  danger?: boolean
+}
+
+function IconButton({ children, onClick, title, active, danger }: IconButtonProps) {
   return (
     <button
       onClick={onClick}

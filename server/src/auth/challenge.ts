@@ -122,10 +122,6 @@ export function verifyMessage(
   msg: { signature?: string; id?: string; type?: string; payload?: unknown; timestamp?: string },
   publicKeyB64: string,
 ): boolean {
-  if (process.env.NODE_ENV === 'development' || process.env.SKIP_SIG_VERIFY) {
-    return true
-  }
-
   if (!msg.signature) return false
 
   try {

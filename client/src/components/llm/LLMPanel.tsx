@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useEffect, useRef, useState } from 'react'
 import { useLLMStore } from '../../store/llmStore'
 import { ipc } from '../../utils/ipc'
@@ -40,16 +39,22 @@ export default function LLMPanel() {
 
   const [input, setInput] = useState('')
   const [useFiles, setUseFiles] = useState(false)
-  const [mention, setMention] = useState({
+  const [mention, setMention] = useState<{
+    active: boolean
+    query: string
+    startIndex: number
+    selectedIndex: number
+    filtered: any[]
+  }>({
     active: false,
     query: '',
     startIndex: 0,
     selectedIndex: 0,
     filtered: [],
   })
-  const [companyFiles, setCompanyFiles] = useState([])
-  const messagesEndRef = useRef(null)
-  const inputRef = useRef(null)
+  const [companyFiles, setCompanyFiles] = useState<any[]>([])
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
   const activeMessages = (activeChatId ? messagesByChat[activeChatId] : null) || []
 
@@ -67,11 +72,11 @@ export default function LLMPanel() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [activeMessages.length, thinking])
 
-  function handleInputChange(e) {
+  function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     const val = e.target.value
     setInput(val)
 
-    const cursor = e.target.selectionStart
+    const cursor = e.target.selectionStart ?? val.length
     const textUpToCursor = val.slice(0, cursor)
     const match = textUpToCursor.match(/@([\w.]*)$/)
 
@@ -111,7 +116,7 @@ export default function LLMPanel() {
     if (mention.active) setMention((m) => ({ ...m, active: false }))
   }
 
-  function selectMention(ctx) {
+  function selectMention(ctx: any) {
     const before = input.slice(0, mention.startIndex)
     const after = input.slice(mention.startIndex + mention.query.length + 1)
     // Files use @file:id syntax; context sources use @key
@@ -128,7 +133,7 @@ export default function LLMPanel() {
     }, 0)
   }
 
-  function handleSend(e) {
+  function handleSend(e: React.SyntheticEvent) {
     e.preventDefault()
     if (!input.trim() || thinking) return
     const text = input.trim()
@@ -144,7 +149,7 @@ export default function LLMPanel() {
     }
   }
 
-  function handleKeyDown(e) {
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (mention.active) {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
@@ -453,8 +458,15 @@ export default function LLMPanel() {
   )
 }
 
-function MentionDropdown({ items, selectedIndex, onSelect, onHover }) {
-  const listRef = useRef(null)
+interface MentionDropdownProps {
+  items: any[]
+  selectedIndex: number
+  onSelect: (item: any) => void
+  onHover: (index: number) => void
+}
+
+function MentionDropdown({ items, selectedIndex, onSelect, onHover }: MentionDropdownProps) {
+  const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const el = listRef.current?.querySelectorAll('[data-item]')[selectedIndex]
@@ -601,7 +613,12 @@ function MentionDropdown({ items, selectedIndex, onSelect, onHover }) {
   )
 }
 
-function StatusDot({ status, model }) {
+interface StatusDotProps {
+  status: string
+  model: string
+}
+
+function StatusDot({ status, model }: StatusDotProps) {
   const color = status === 'online' ? '#06d6a0' : status === 'offline' ? '#ef476f' : '#888'
   const label =
     status === 'online'
@@ -621,13 +638,21 @@ function StatusDot({ status, model }) {
   )
 }
 
-function ChatItem({ chat, active, onSelect, onDelete, onRename }) {
+interface ChatItemProps {
+  chat: any
+  active: boolean
+  onSelect: () => void
+  onDelete: () => void
+  onRename: (title: string) => void
+}
+
+function ChatItem({ chat, active, onSelect, onDelete, onRename }: ChatItemProps) {
   const [hovered, setHovered] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState('')
-  const editRef = useRef(null)
+  const editRef = useRef<HTMLInputElement>(null)
 
-  function startEdit(e) {
+  function startEdit(e: React.MouseEvent) {
     e.stopPropagation()
     setEditTitle(chat.title)
     setEditing(true)
@@ -642,7 +667,7 @@ function ChatItem({ chat, active, onSelect, onDelete, onRename }) {
     setEditing(false)
   }
 
-  function handleEditKey(e) {
+  function handleEditKey(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') {
       e.preventDefault()
       commitEdit()
@@ -742,7 +767,11 @@ function ChatItem({ chat, active, onSelect, onDelete, onRename }) {
   )
 }
 
-function MessageBubble({ message }) {
+interface LLMMessageBubbleProps {
+  message: any
+}
+
+function MessageBubble({ message }: LLMMessageBubbleProps) {
   const isUser = message.role === 'user'
   return (
     <div style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start' }}>
@@ -799,7 +828,12 @@ function ThinkingBubble() {
   )
 }
 
-function EmptyState({ status, onNew }) {
+interface LLMEmptyStateProps {
+  status: string
+  onNew: () => void
+}
+
+function EmptyState({ status, onNew }: LLMEmptyStateProps) {
   return (
     <div
       style={{

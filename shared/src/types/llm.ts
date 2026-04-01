@@ -8,7 +8,7 @@ export interface LLMChat {
 
 export interface LLMMessage {
   id: string
-  chat_id: string
+  chat_id?: string
   role: 'user' | 'assistant' | 'system'
   content: string
   created_at: string

@@ -1,9 +1,48 @@
-// @ts-nocheck
 import { create } from 'zustand'
 import { ipc } from '../utils/ipc'
 import { useConnectionStore } from './connectionStore'
 
-export const useMessageStore = create((set, get) => ({
+/** Decrypted DM as used in the client (text instead of encrypted/nonce) */
+export interface DecryptedDM {
+  id: string
+  fromUserId: string
+  toUserId: string
+  text: string
+  createdAt: string
+  deletedAt?: string | null
+  editedAt?: string | null
+  fileId?: string | null
+  fileName?: string | null
+  fileSize?: number | null
+  mimeType?: string | null
+}
+
+interface MessageStoreState {
+  threads: Record<string, DecryptedDM[]>
+  activeThreadUserId: string | null
+  unreadCounts: Record<string, number>
+}
+
+interface MessageStoreActions {
+  setActiveThread: (userId: string | null) => void
+  setHistory: (withUserId: string, messages: DecryptedDM[]) => void
+  addMessage: (dm: DecryptedDM) => void
+  sendMessage: (
+    toUserId: string,
+    text: string,
+  ) => Promise<{ ok: boolean; error?: string } | { ok: false } | void>
+  deleteMessage: (dmId: string) => void
+  editMessage: (
+    dmId: string,
+    newText: string,
+    toUserId: string,
+  ) => Promise<{ ok: boolean; error?: string } | { ok: false } | void>
+  markEdited: (dmId: string, newText: string) => void
+  markDeleted: (dmId: string) => void
+  totalUnread: () => number
+}
+
+export const useMessageStore = create<MessageStoreState & MessageStoreActions>()((set, get) => ({
   // Map of userId → Message[]
   threads: {},
   // Which user's thread is open
@@ -65,7 +104,7 @@ export const useMessageStore = create((set, get) => ({
 
   markEdited: (dmId, newText) =>
     set((s) => {
-      const newThreads = {}
+      const newThreads: Record<string, DecryptedDM[]> = {}
       for (const [uid, msgs] of Object.entries(s.threads)) {
         newThreads[uid] = msgs.map((m) =>
           m.id === dmId ? { ...m, text: newText, editedAt: new Date().toISOString() } : m,
@@ -76,7 +115,7 @@ export const useMessageStore = create((set, get) => ({
 
   markDeleted: (dmId) =>
     set((s) => {
-      const newThreads = {}
+      const newThreads: Record<string, DecryptedDM[]> = {}
       for (const [uid, msgs] of Object.entries(s.threads)) {
         newThreads[uid] = msgs.map((m) =>
           m.id === dmId ? { ...m, deletedAt: new Date().toISOString() } : m,

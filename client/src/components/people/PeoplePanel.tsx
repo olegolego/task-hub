@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React from 'react'
 import { useUserStore } from '../../store/userStore'
 import { useConnectionStore } from '../../store/connectionStore'
@@ -12,7 +11,7 @@ export default function PeoplePanel() {
   const offline = users.filter((u) => !onlineIds.includes(u.id))
   const isAdmin = myRole === 'admin'
 
-  function approveUser(userId) {
+  function approveUser(userId: string) {
     ipc.sendMessage({ type: 'user:approve', payload: { userId } })
     // Optimistically remove from pending list
     useUserStore.getState().removePendingUser(userId)
@@ -128,7 +127,12 @@ export default function PeoplePanel() {
   )
 }
 
-function PendingUserRow({ user, onApprove }) {
+interface PendingUserRowProps {
+  user: any
+  onApprove: () => void
+}
+
+function PendingUserRow({ user, onApprove }: PendingUserRowProps) {
   const [hovered, setHovered] = React.useState(false)
   const name = user.display_name || user.displayName || 'Unknown'
   const initials = name.slice(0, 2).toUpperCase()
@@ -201,7 +205,11 @@ function PendingUserRow({ user, onApprove }) {
   )
 }
 
-function SectionLabel({ label }) {
+interface SectionLabelProps {
+  label: string
+}
+
+function SectionLabel({ label }: SectionLabelProps) {
   return (
     <div
       style={{
@@ -217,7 +225,13 @@ function SectionLabel({ label }) {
   )
 }
 
-function UserRow({ user, isOnline, isMe }) {
+interface UserRowProps {
+  user: any
+  isOnline: boolean
+  isMe: boolean
+}
+
+function UserRow({ user, isOnline, isMe }: UserRowProps) {
   const [hovered, setHovered] = React.useState(false)
   const name = user.display_name || user.displayName || 'Unknown'
   const initials = name.slice(0, 2).toUpperCase()

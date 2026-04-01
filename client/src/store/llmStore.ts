@@ -1,8 +1,41 @@
-// @ts-nocheck
 import { create } from 'zustand'
 import { ipc } from '../utils/ipc'
+import type { LLMChat, LLMMessage } from '@task-hub/shared'
 
-export const useLLMStore = create((set, get) => ({
+type LLMStatus = 'unknown' | 'online' | 'offline'
+
+interface LLMStoreState {
+  chats: LLMChat[]
+  activeChatId: string | null
+  messagesByChat: Record<string, LLMMessage[]>
+  thinking: boolean
+  loadingHistory: boolean
+  llmStatus: LLMStatus
+  llmModel: string | null
+  lastError: string | null
+}
+
+interface LLMStoreActions {
+  setChats: (chats: LLMChat[]) => void
+  addChat: (chat: LLMChat) => void
+  removeChat: (chatId: string) => void
+  setMessages: (chatId: string, messages: LLMMessage[]) => void
+  addMessage: (chatId: string, message: LLMMessage) => void
+  setStatus: (status: LLMStatus, model: string | null) => void
+  setThinking: (thinking: boolean) => void
+  setError: (error: string | null) => void
+  checkStatus: () => void
+  loadChats: () => void
+  newChat: () => void
+  loadHistory: (chatId: string) => void
+  selectChat: (chatId: string | null) => void
+  sendMessage: (text: string, useCompanyData?: boolean) => void
+  deleteChat: (chatId: string) => void
+  renameChat: (chatId: string, title: string) => void
+  updateChatTitle: (chatId: string, title: string) => void
+}
+
+export const useLLMStore = create<LLMStoreState & LLMStoreActions>()((set, get) => ({
   // Chat list
   chats: [],
   activeChatId: null,

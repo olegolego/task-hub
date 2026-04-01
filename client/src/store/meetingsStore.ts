@@ -1,8 +1,49 @@
-// @ts-nocheck
 import { create } from 'zustand'
 import { ipc } from '../utils/ipc'
+import type { AttendeeStatus } from '@task-hub/shared'
 
-export const useMeetingsStore = create((set, get) => ({
+/** Local meeting shape — uses camelCase and epoch-ms numbers for dates */
+interface ClientMeeting {
+  id: string
+  title: string
+  description: string
+  startTime: number
+  endTime: number
+  createdBy: string
+  groupId?: string | null
+  attendees?: MeetingAttendeeClient[]
+  createdAt: number
+}
+
+interface MeetingAttendeeClient {
+  userId: string
+  status: AttendeeStatus
+}
+
+interface MeetingsStoreState {
+  meetings: ClientMeeting[]
+}
+
+interface MeetingsStoreActions {
+  setMeetings: (meetings: ClientMeeting[]) => void
+  addMeeting: (meeting: ClientMeeting) => void
+  updateMeeting: (meeting: ClientMeeting) => void
+  removeMeeting: (meetingId: string) => void
+  loadMeetings: () => void
+  createMeeting: (params: {
+    title: string
+    description: string
+    startTime: number
+    endTime: number
+    attendeeIds: string[]
+    groupId?: string | null
+  }) => void
+  respondToMeeting: (meetingId: string, status: AttendeeStatus | string) => void
+  deleteMeeting: (meetingId: string) => void
+  getUpcoming: () => ClientMeeting[]
+}
+
+export const useMeetingsStore = create<MeetingsStoreState & MeetingsStoreActions>()((set, get) => ({
   meetings: [],
 
   setMeetings: (meetings) => set({ meetings }),

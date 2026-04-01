@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useEffect, useRef, useState } from 'react'
 import { useMeetingsStore } from '../../store/meetingsStore'
 import { useUserStore } from '../../store/userStore'
@@ -7,7 +6,8 @@ import { useConnectionStore } from '../../store/connectionStore'
 // ─── Web Audio chime ─────────────────────────────────────────────────────────
 function playChime() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)()
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+    const ctx = new AudioCtx()
     const notes = [523.25, 659.25, 783.99, 1046.5] // C5, E5, G5, C6
     notes.forEach((freq, i) => {
       const osc = ctx.createOscillator()
@@ -28,7 +28,7 @@ function playChime() {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-function startOfWeek(date) {
+function startOfWeek(date: Date): Date {
   const d = new Date(date)
   const day = d.getDay() // 0=Sun
   const diff = day === 0 ? -6 : 1 - day // shift to Monday
@@ -37,28 +37,28 @@ function startOfWeek(date) {
   return d
 }
 
-function addDays(date, n) {
+function addDays(date: Date, n: number): Date {
   const d = new Date(date)
   d.setDate(d.getDate() + n)
   return d
 }
 
-function formatTime(ms) {
+function formatTime(ms: number): string {
   const d = new Date(ms)
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-function formatDate(ms) {
+function formatDate(ms: number): string {
   const d = new Date(ms)
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
 }
 
-function formatDateInput(ms) {
+function formatDateInput(ms: number | Date): string {
   const d = new Date(ms)
   return d.toISOString().slice(0, 10)
 }
 
-function formatTimeInput(ms) {
+function formatTimeInput(ms: number): string {
   const d = new Date(ms)
   const hh = String(d.getHours()).padStart(2, '0')
   const mm = String(d.getMinutes()).padStart(2, '0')
@@ -72,7 +72,13 @@ const HOUR_HEIGHT = 60 // px per hour
 const GRID_HEIGHT = (HOUR_END - HOUR_START) * HOUR_HEIGHT // 720px
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
-function Avatar({ name, color, size = 22 }) {
+interface AvatarProps {
+  name: string
+  color: string
+  size?: number
+}
+
+function Avatar({ name, color, size = 22 }: AvatarProps) {
   return (
     <div
       style={{
@@ -95,7 +101,12 @@ function Avatar({ name, color, size = 22 }) {
 }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
-function Toast({ message, onDone }) {
+interface ToastProps {
+  message: string
+  onDone: () => void
+}
+
+function Toast({ message, onDone }: ToastProps) {
   useEffect(() => {
     const t = setTimeout(onDone, 5000)
     return () => clearTimeout(t)
@@ -126,10 +137,14 @@ function Toast({ message, onDone }) {
 }
 
 // ─── Create Meeting Modal ─────────────────────────────────────────────────────
-function CreateMeetingModal({ onClose }) {
+interface CreateMeetingModalProps {
+  onClose: (...args: any[]) => void
+}
+
+function CreateMeetingModal({ onClose }: CreateMeetingModalProps) {
   const { createMeeting } = useMeetingsStore()
   const users = useUserStore((s) => s.users)
-  const myUser = useConnectionStore((s) => s.myUser)
+  const myUserId = useConnectionStore((s) => s.myUserId)
 
   const now = new Date()
   const [title, setTitle] = useState('')
@@ -137,13 +152,13 @@ function CreateMeetingModal({ onClose }) {
   const [date, setDate] = useState(formatDateInput(now))
   const [startTime, setStartTime] = useState('09:00')
   const [endTime, setEndTime] = useState('10:00')
-  const [attendeeIds, setAttendeeIds] = useState([])
+  const [attendeeIds, setAttendeeIds] = useState<string[]>([])
 
-  function toggleAttendee(id) {
+  function toggleAttendee(id: string) {
     setAttendeeIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
   }
 
-  function handleSubmit(e) {
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!title.trim()) return
     const startMs = new Date(`${date}T${startTime}`).getTime()
@@ -163,9 +178,9 @@ function CreateMeetingModal({ onClose }) {
     onClose(startMs)
   }
 
-  const otherUsers = users.filter((u) => u.id !== myUser?.id)
+  const otherUsers = users.filter((u) => u.id !== myUserId)
 
-  const inputStyle = {
+  const inputStyle: React.CSSProperties = {
     background: 'var(--bg)',
     border: '1px solid rgba(255,255,255,0.12)',
     borderRadius: 6,
@@ -398,7 +413,13 @@ function CreateMeetingModal({ onClose }) {
 }
 
 // ─── Meeting Detail Popover ───────────────────────────────────────────────────
-function MeetingPopover({ meeting, anchorRect, onClose }) {
+interface MeetingPopoverProps {
+  meeting: any
+  anchorRect: DOMRect | null
+  onClose: () => void
+}
+
+function MeetingPopover({ meeting, anchorRect, onClose }: MeetingPopoverProps) {
   const { respondToMeeting, deleteMeeting } = useMeetingsStore()
   const myId = useConnectionStore((s) => s.myUserId)
 
@@ -406,7 +427,7 @@ function MeetingPopover({ meeting, anchorRect, onClose }) {
   const isCreator = meeting.createdBy === myId
   const isAttendee = !!myAttendee && !isCreator
 
-  function handleRespond(status) {
+  function handleRespond(status: string) {
     respondToMeeting(meeting.id, status)
     onClose()
   }
@@ -416,10 +437,14 @@ function MeetingPopover({ meeting, anchorRect, onClose }) {
     onClose()
   }
 
-  const statusColors = { accepted: '#06d6a0', declined: '#ef476f', pending: '#ffd166' }
+  const statusColors: Record<string, string> = {
+    accepted: '#06d6a0',
+    declined: '#ef476f',
+    pending: '#ffd166',
+  }
 
   // Position popover near anchor
-  const style = {
+  const style: React.CSSProperties = {
     position: 'fixed',
     top: anchorRect ? Math.min(anchorRect.bottom + 6, window.innerHeight - 260) : '50%',
     left: anchorRect ? Math.min(anchorRect.right + 8, window.innerWidth - 280) : '50%',
@@ -543,11 +568,17 @@ function MeetingPopover({ meeting, anchorRect, onClose }) {
 }
 
 // ─── Week Grid ────────────────────────────────────────────────────────────────
-function WeekGrid({ weekStart, meetings, onMeetingClick }) {
+interface WeekGridProps {
+  weekStart: Date
+  meetings: any[]
+  onMeetingClick: (meeting: any, rect: DOMRect) => void
+}
+
+function WeekGrid({ weekStart, meetings, onMeetingClick }: WeekGridProps) {
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
   const hours = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i)
 
-  function getMeetingsForDay(dayDate) {
+  function getMeetingsForDay(dayDate: Date) {
     const dayStart = new Date(dayDate)
     dayStart.setHours(0, 0, 0, 0)
     const dayEnd = new Date(dayDate)
@@ -557,7 +588,7 @@ function WeekGrid({ weekStart, meetings, onMeetingClick }) {
     )
   }
 
-  function getBlockStyle(meeting) {
+  function getBlockStyle(meeting: any) {
     const dayStart = new Date(meeting.startTime)
     dayStart.setHours(HOUR_START, 0, 0, 0)
     const startHour =
@@ -733,7 +764,11 @@ function WeekGrid({ weekStart, meetings, onMeetingClick }) {
 }
 
 // ─── Upcoming Sidebar ─────────────────────────────────────────────────────────
-function UpcomingList({ meetings }) {
+interface UpcomingListProps {
+  meetings: any[]
+}
+
+function UpcomingList({ meetings }: UpcomingListProps) {
   const now = Date.now()
   const upcoming = meetings.filter((m) => m.endTime > now).slice(0, 5)
 
@@ -801,7 +836,12 @@ function UpcomingList({ meetings }) {
 }
 
 // ─── Pending Invites Banner ───────────────────────────────────────────────────
-function PendingInvitesBanner({ meetings, myId }) {
+interface PendingInvitesBannerProps {
+  meetings: any[]
+  myId: string
+}
+
+function PendingInvitesBanner({ meetings, myId }: PendingInvitesBannerProps) {
   const { respondToMeeting } = useMeetingsStore()
   const pending = meetings.filter(
     (m) =>
@@ -877,10 +917,10 @@ export default function CalendarPanel() {
   const myId = useConnectionStore((s) => s.myUserId)
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()))
   const [showCreate, setShowCreate] = useState(false)
-  const [selectedMeeting, setSelectedMeeting] = useState(null)
-  const [selectedAnchor, setSelectedAnchor] = useState(null)
-  const [toasts, setToasts] = useState([])
-  const notifiedRef = useRef(new Set())
+  const [selectedMeeting, setSelectedMeeting] = useState<any | null>(null)
+  const [selectedAnchor, setSelectedAnchor] = useState<DOMRect | null>(null)
+  const [toasts, setToasts] = useState<Array<{ id: number; text: string }>>([])
+  const notifiedRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     loadMeetings()
@@ -909,7 +949,7 @@ export default function CalendarPanel() {
     return () => clearInterval(timer)
   }, [meetings])
 
-  function handleMeetingClick(meeting, rect) {
+  function handleMeetingClick(meeting: any, rect: DOMRect) {
     setSelectedMeeting(meeting)
     setSelectedAnchor(rect)
   }
@@ -1017,7 +1057,7 @@ export default function CalendarPanel() {
   )
 }
 
-const navBtnStyle = {
+const navBtnStyle: React.CSSProperties = {
   padding: '5px 10px',
   borderRadius: 6,
   border: '1px solid rgba(255,255,255,0.12)',

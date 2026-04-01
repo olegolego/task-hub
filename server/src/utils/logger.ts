@@ -1,3 +1,5 @@
+import { config } from '../config.js'
+
 type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
 const LEVEL_PRIORITY: Record<LogLevel, number> = {
@@ -7,7 +9,7 @@ const LEVEL_PRIORITY: Record<LogLevel, number> = {
   error: 3,
 }
 
-const minLevel: LogLevel = (process.env.LOG_LEVEL as LogLevel) || 'info'
+const minLevel: LogLevel = config.LOG_LEVEL
 
 function shouldLog(level: LogLevel): boolean {
   return LEVEL_PRIORITY[level] >= LEVEL_PRIORITY[minLevel]

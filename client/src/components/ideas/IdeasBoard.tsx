@@ -1,10 +1,13 @@
-// @ts-nocheck
 import React from 'react'
 import IdeaCard from './IdeaCard'
 import IdeaComposer from './IdeaComposer'
 import { useIdeaStore } from '../../store/ideaStore'
 
-export default function IdeasBoard({ groupId = null }) {
+interface IdeasBoardProps {
+  groupId?: string | null
+}
+
+export default function IdeasBoard({ groupId = null }: IdeasBoardProps) {
   const { getSortedIdeas } = useIdeaStore()
   const ideas = getSortedIdeas(groupId)
 

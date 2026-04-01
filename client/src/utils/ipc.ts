@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Safe wrappers around window.api (available only in Electron)
 const api = () => window.api
 
@@ -10,11 +9,14 @@ export const ipc = {
   getPinState: () => api()?.getPinState() ?? Promise.resolve(true),
 
   // Config
-  getConfig: () => api()?.getConfig() ?? Promise.resolve({}),
-  saveConfig: (config) => api()?.saveConfig(config) ?? Promise.resolve({}),
+  getConfig: () =>
+    api()?.getConfig() ?? Promise.resolve({} as { serverUrl?: string; displayName?: string }),
+  saveConfig: (config: { serverUrl?: string; displayName?: string }) =>
+    api()?.saveConfig(config) ?? Promise.resolve({}),
 
   // Network messaging
-  sendMessage: (msg) => api()?.sendMessage(msg) ?? Promise.resolve(false),
+  sendMessage: (msg: { type: string; payload?: unknown }) =>
+    api()?.sendMessage(msg) ?? Promise.resolve(false),
 
   // Auth
   getPublicKey: () => api()?.getPublicKey() ?? Promise.resolve(null),
@@ -23,22 +25,33 @@ export const ipc = {
   notifyReady: () => api()?.notifyReady() ?? Promise.resolve(),
 
   // Direct messages
-  sendDM: (toUserId, text) => api()?.sendDM(toUserId, text) ?? Promise.resolve({ ok: false }),
-  editDM: (dmId, newText, toUserId) =>
+  sendDM: (toUserId: string, text: string) =>
+    api()?.sendDM(toUserId, text) ?? Promise.resolve({ ok: false }),
+  editDM: (dmId: string, newText: string, toUserId: string) =>
     api()?.editDM(dmId, newText, toUserId) ?? Promise.resolve({ ok: false }),
-  loadDMHistory: (withUserId, limit) =>
+  loadDMHistory: (withUserId: string, limit?: number) =>
     api()?.loadDMHistory(withUserId, limit) ?? Promise.resolve(false),
 
   // File sharing (E2E encrypted DMs)
-  sendFileDM: (toUserId) => api()?.sendFileDM(toUserId) ?? Promise.resolve({ ok: false }),
-  downloadFileDM: (args) => api()?.downloadFileDM(args) ?? Promise.resolve({ ok: false }),
+  sendFileDM: (toUserId: string) => api()?.sendFileDM(toUserId) ?? Promise.resolve({ ok: false }),
+  downloadFileDM: (args: {
+    fileId: string
+    fileName: string
+    encFileKey: string
+    fileKeyNonce: string
+    fromUserId: string
+  }) => api()?.downloadFileDM(args) ?? Promise.resolve({ ok: false, canceled: false }),
 
   // Company files (shared)
-  uploadCompanyFile: (folder) => api()?.uploadCompanyFile(folder) ?? Promise.resolve({ ok: false }),
-  downloadCompanyFile: (args) => api()?.downloadCompanyFile(args) ?? Promise.resolve({ ok: false }),
+  uploadCompanyFile: (folder: string) =>
+    api()?.uploadCompanyFile(folder) ?? Promise.resolve({ ok: false }),
+  downloadCompanyFile: (args: { fileId: string; fileName: string }) =>
+    api()?.downloadCompanyFile(args) ?? Promise.resolve({ ok: false }),
 
   // Subscriptions (return cleanup functions)
-  onMessage: (handler) => api()?.onMessage(handler) ?? (() => {}),
-  onConnectionState: (handler) => api()?.onConnectionState(handler) ?? (() => {}),
-  onFocusInput: (handler) => api()?.onFocusInput(handler) ?? (() => {}),
+  onMessage: (handler: (msg: Record<string, any>) => void) =>
+    api()?.onMessage(handler) ?? (() => {}),
+  onConnectionState: (handler: (state: string) => void) =>
+    api()?.onConnectionState(handler) ?? (() => {}),
+  onFocusInput: (handler: () => void) => api()?.onFocusInput(handler) ?? (() => {}),
 }

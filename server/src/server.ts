@@ -1,4 +1,5 @@
 import * as http from 'http'
+import * as https from 'https'
 import { WebSocketServer, type WebSocket } from 'ws'
 import * as path from 'path'
 import * as fs from 'fs'
@@ -9,6 +10,8 @@ import { MESSAGE_TYPES } from '@task-hub/shared'
 import { v4 as uuidv4 } from 'uuid'
 import { checkRateLimit } from './middleware/rateLimit.js'
 import { createLogger } from './utils/logger.js'
+import { config } from './config.js'
+import { generateToken, verifyToken } from './auth/httpTokens.js'
 import type { ClientInfo } from './auth/permissions.js'
 
 const log = createLogger('server')
@@ -25,9 +28,19 @@ export function createServer() {
   if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true })
   if (!fs.existsSync(companyFilesDir)) fs.mkdirSync(companyFilesDir, { recursive: true })
 
-  const httpServer = http.createServer((req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*')
-    res.setHeader('Access-Control-Allow-Headers', 'X-User-Id, Content-Type')
+  const allowedOrigins = config.CORS_ORIGINS
+    ? config.CORS_ORIGINS.split(',').map((s) => s.trim())
+    : []
+
+  const useTLS = !!(config.TLS_CERT_PATH && config.TLS_KEY_PATH)
+  const requestHandler: http.RequestListener = (req, res) => {
+    if (allowedOrigins.length > 0) {
+      const origin = req.headers.origin
+      if (origin && allowedOrigins.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin)
+        res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+      }
+    }
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204)
@@ -44,14 +57,15 @@ export function createServer() {
 
     // POST /upload
     if (req.method === 'POST' && req.url?.startsWith('/upload')) {
-      const userId = req.headers['x-user-id'] as string | undefined
-      const user =
-        userId && db.prepare("SELECT id FROM users WHERE id = ? AND status = 'active'").get(userId)
-      if (!user) {
+      const authHeader = req.headers.authorization
+      const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+      const tokenResult = token ? verifyToken(token, 'upload') : { valid: false }
+      if (!tokenResult.valid || !tokenResult.userId) {
         res.writeHead(401)
         res.end(JSON.stringify({ error: 'Unauthorized' }))
         return
       }
+      const userId = tokenResult.userId
 
       const params = new URL(req.url, 'http://localhost').searchParams
       const fileName = params.get('name') || 'file'
@@ -59,8 +73,22 @@ export function createServer() {
       const fileSize = parseInt(params.get('size') || '0', 10)
 
       const chunks: Buffer[] = []
-      req.on('data', (c: Buffer) => chunks.push(c))
+      let totalSize = 0
+      let aborted = false
+      req.on('data', (c: Buffer) => {
+        if (aborted) return
+        totalSize += c.length
+        if (totalSize > config.MAX_FILE_SIZE) {
+          aborted = true
+          res.writeHead(413)
+          res.end(JSON.stringify({ error: 'File too large' }))
+          req.destroy()
+          return
+        }
+        chunks.push(c)
+      })
       req.on('end', () => {
+        if (aborted) return
         const buf = Buffer.concat(chunks)
         const fileId = uuidv4()
         const storedPath = path.join(uploadsDir, fileId)
@@ -79,9 +107,17 @@ export function createServer() {
     }
 
     // GET /files/:id
-    const fileMatch = req.url?.match(/^\/files\/([a-f0-9-]+)$/)
+    const fileMatch = req.url?.match(/^\/files\/([a-f0-9-]+)/)
     if (req.method === 'GET' && fileMatch) {
-      const fileId = fileMatch[1]
+      const fileId = fileMatch[1]!
+      const urlObj = new URL(req.url!, 'http://localhost')
+      const dlToken = urlObj.searchParams.get('token')
+      const dlResult = dlToken ? verifyToken(dlToken, 'download', fileId) : { valid: false }
+      if (!dlResult.valid) {
+        res.writeHead(401)
+        res.end(JSON.stringify({ error: 'Unauthorized' }))
+        return
+      }
       const file = db.prepare('SELECT * FROM files WHERE id = ?').get(fileId) as
         | { stored_path: string }
         | undefined
@@ -100,14 +136,15 @@ export function createServer() {
 
     // POST /company-upload
     if (req.method === 'POST' && req.url?.startsWith('/company-upload')) {
-      const userId = req.headers['x-user-id'] as string | undefined
-      const user =
-        userId && db.prepare("SELECT id FROM users WHERE id = ? AND status = 'active'").get(userId)
-      if (!user) {
+      const authHeader = req.headers.authorization
+      const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+      const tokenResult = token ? verifyToken(token, 'upload') : { valid: false }
+      if (!tokenResult.valid || !tokenResult.userId) {
         res.writeHead(401)
-        res.end()
+        res.end(JSON.stringify({ error: 'Unauthorized' }))
         return
       }
+      const userId = tokenResult.userId
 
       const params = new URL(req.url, 'http://localhost').searchParams
       const fileName = params.get('name') || 'file'
@@ -116,8 +153,22 @@ export function createServer() {
       const folder = params.get('folder') || 'General'
 
       const chunks: Buffer[] = []
-      req.on('data', (c: Buffer) => chunks.push(c))
+      let totalSize = 0
+      let aborted = false
+      req.on('data', (c: Buffer) => {
+        if (aborted) return
+        totalSize += c.length
+        if (totalSize > config.MAX_FILE_SIZE) {
+          aborted = true
+          res.writeHead(413)
+          res.end(JSON.stringify({ error: 'File too large' }))
+          req.destroy()
+          return
+        }
+        chunks.push(c)
+      })
       req.on('end', () => {
+        if (aborted) return
         const buf = Buffer.concat(chunks)
         const fileId = uuidv4()
         const storedPath = path.join(companyFilesDir, fileId)
@@ -153,11 +204,20 @@ export function createServer() {
     }
 
     // GET /company-files/:id
-    const companyFileMatch = req.url?.match(/^\/company-files\/([a-f0-9-]+)$/)
+    const companyFileMatch = req.url?.match(/^\/company-files\/([a-f0-9-]+)/)
     if (req.method === 'GET' && companyFileMatch) {
-      const file = db
-        .prepare('SELECT * FROM company_files WHERE id = ?')
-        .get(companyFileMatch[1]) as
+      const companyFileId = companyFileMatch[1]!
+      const urlObj2 = new URL(req.url!, 'http://localhost')
+      const dlToken2 = urlObj2.searchParams.get('token')
+      const dlResult2 = dlToken2
+        ? verifyToken(dlToken2, 'download', companyFileId)
+        : { valid: false }
+      if (!dlResult2.valid) {
+        res.writeHead(401)
+        res.end(JSON.stringify({ error: 'Unauthorized' }))
+        return
+      }
+      const file = db.prepare('SELECT * FROM company_files WHERE id = ?').get(companyFileId) as
         | { stored_path: string; mime_type: string; name: string }
         | undefined
       if (!file || !fs.existsSync(file.stored_path)) {
@@ -176,7 +236,24 @@ export function createServer() {
 
     res.writeHead(404)
     res.end()
-  })
+  }
+
+  let httpServer: http.Server | https.Server
+  if (useTLS) {
+    httpServer = https.createServer(
+      {
+        cert: fs.readFileSync(config.TLS_CERT_PATH!),
+        key: fs.readFileSync(config.TLS_KEY_PATH!),
+      },
+      requestHandler,
+    )
+    log.info('TLS enabled')
+  } else {
+    httpServer = http.createServer(requestHandler)
+    log.warn(
+      'TLS is NOT enabled — traffic is unencrypted. Set TLS_CERT_PATH and TLS_KEY_PATH for wss:// support.',
+    )
+  }
 
   const wss = new WebSocketServer({ server: httpServer })
 
@@ -309,6 +386,16 @@ export function createServer() {
               )
               .get(targetId)
             broadcast({ type: MESSAGE_TYPES.USER_APPROVED, userId: targetId, user: approvedUser })
+          }
+          return
+        }
+
+        // File token requests
+        if (msg.type === MESSAGE_TYPES.FILE_TOKEN_REQUEST) {
+          const p = msg.payload as { action?: 'upload' | 'download'; fileId?: string } | undefined
+          if (p?.action) {
+            const fileToken = generateToken(clientInfo.id, p.action, p.fileId)
+            ws.send(JSON.stringify({ type: MESSAGE_TYPES.FILE_TOKEN_RESPONSE, token: fileToken }))
           }
           return
         }

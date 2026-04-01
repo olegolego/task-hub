@@ -1,10 +1,42 @@
-// @ts-nocheck
 import { create } from 'zustand'
 import { ipc } from '../utils/ipc'
-import { parseTaskInput } from '../utils/constants'
 import { v4 as uuidv4 } from 'uuid'
+import type { Task, PriorityKey } from '@task-hub/shared'
 
-export const useTaskStore = create((set, get) => ({
+interface TaskStoreState {
+  tasks: Task[]
+  theme: 'dark' | 'light'
+  showCompleted: boolean
+  activeCategory: string
+  isPinned: boolean
+  inputRef: HTMLInputElement | null
+}
+
+interface TaskStoreActions {
+  setInputRef: (ref: HTMLInputElement | null) => void
+  focusInput: () => void
+  setTasks: (tasks: Task[]) => void
+  addTaskFromServer: (task: Task) => void
+  updateTaskFromServer: (task: Task) => void
+  removeTaskFromServer: (id: string) => void
+  loadSettings: () => Promise<void>
+  addTask: (title: string, priority?: PriorityKey, groupId?: string | null) => Promise<void>
+  toggleTask: (id: string) => void
+  updateTaskTitle: (id: string, title: string) => void
+  updateTaskPriority: (id: string, priority: PriorityKey | string) => void
+  deleteTask: (id: string) => void
+  setActiveCategory: (cat: string) => void
+  toggleShowCompleted: () => void
+  toggleTheme: () => void
+  togglePin: () => Promise<void>
+  minimizeWindow: () => void
+  closeWindow: () => void
+  getFilteredTasks: (groupId?: string | null) => Task[]
+}
+
+const priorityOrder: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 }
+
+export const useTaskStore = create<TaskStoreState & TaskStoreActions>()((set, get) => ({
   tasks: [],
   theme: 'dark',
   showCompleted: true,
@@ -47,7 +79,7 @@ export const useTaskStore = create((set, get) => ({
   addTask: async (title, priority = 'medium', groupId = null) => {
     const id = uuidv4()
     // Optimistic: add locally immediately
-    const optimistic = {
+    const optimistic: Task = {
       id,
       title,
       priority,
@@ -55,6 +87,7 @@ export const useTaskStore = create((set, get) => ({
       status: 'todo',
       group_id: groupId,
       assigned_to: null,
+      created_by: '',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       sort_order: Date.now(),
@@ -76,7 +109,7 @@ export const useTaskStore = create((set, get) => ({
     set((s) => ({
       tasks: s.tasks.map((t) =>
         t.id === id
-          ? { ...t, completed: completed ? 1 : 0, status: completed ? 'done' : 'todo' }
+          ? { ...t, completed: completed ? 1 : 0, status: completed ? 'done' : ('todo' as const) }
           : t,
       ),
     }))
@@ -119,10 +152,9 @@ export const useTaskStore = create((set, get) => ({
       .filter((t) => showCompleted || !t.completed)
       .sort((a, b) => {
         if (a.completed !== b.completed) return a.completed - b.completed
-        const pOrder = { urgent: 0, high: 1, medium: 2, low: 3 }
-        const pd = (pOrder[a.priority] ?? 2) - (pOrder[b.priority] ?? 2)
+        const pd = (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2)
         if (pd !== 0) return pd
-        return new Date(a.created_at) - new Date(b.created_at)
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       })
   },
 }))

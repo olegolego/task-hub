@@ -1,24 +1,25 @@
-// @ts-nocheck
 import React, { useState, useRef } from 'react'
 import { useIdeaStore } from '../../store/ideaStore'
 import { useUserStore } from '../../store/userStore'
-import { useConnectionStore } from '../../store/connectionStore'
 
-const STATUS_COLORS = {
+const STATUS_COLORS: Record<string, string> = {
   open: '#4cc9f0',
   discussed: '#ffd166',
   accepted: '#06d6a0',
   archived: '#8d99ae',
 }
 
-export default function IdeaCard({ idea }) {
+interface IdeaCardProps {
+  idea: any
+}
+
+export default function IdeaCard({ idea }: IdeaCardProps) {
   const { voteIdea, changeIdeaStatus, loadComments, postComment, commentsByIdea } = useIdeaStore()
   const { getUserById } = useUserStore()
-  const { myUserId } = useConnectionStore()
   const [showMenu, setShowMenu] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [commentInput, setCommentInput] = useState('')
-  const commentRef = useRef(null)
+  const commentRef = useRef<HTMLInputElement>(null)
 
   const author = getUserById(idea.created_by)
   const voteCount = idea.vote_count || 0
@@ -29,7 +30,7 @@ export default function IdeaCard({ idea }) {
     setExpanded((s) => !s)
   }
 
-  function submitComment(e) {
+  function submitComment(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     postComment(idea.id, commentInput)
     setCommentInput('')

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useEffect, useRef } from 'react'
 import { useMessageStore } from '../../store/messageStore'
 import { useUserStore } from '../../store/userStore'
@@ -139,17 +138,25 @@ export default function MessagesPanel() {
   )
 }
 
-function Thread({ userId, myUserId, messages, users, onSend }) {
+interface ThreadProps {
+  userId: string
+  myUserId: string
+  messages: any[]
+  users: any[]
+  onSend: (text: string) => void
+}
+
+function Thread({ userId, myUserId, messages, users, onSend }: ThreadProps) {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
-  const bottomRef = useRef(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
   const peer = users.find((u) => u.id === userId)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  function handleKeyDown(e) {
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       submit()
@@ -336,12 +343,19 @@ function Thread({ userId, myUserId, messages, users, onSend }) {
   )
 }
 
-function MessageBubble({ m, isMine, userId, myUserId }) {
+interface MessageBubbleProps {
+  m: any
+  isMine: boolean
+  userId: string
+  myUserId: string
+}
+
+function MessageBubble({ m, isMine, userId, myUserId }: MessageBubbleProps) {
   const { deleteMessage, editMessage } = useMessageStore()
   const [hovered, setHovered] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editText, setEditText] = useState('')
-  const editRef = useRef(null)
+  const editRef = useRef<HTMLTextAreaElement>(null)
   const isFile = !!m.fileId
   const isDeleted = !!m.deletedAt
 
@@ -366,7 +380,7 @@ function MessageBubble({ m, isMine, userId, myUserId }) {
     cancelEdit()
   }
 
-  function handleEditKeyDown(e) {
+  function handleEditKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       submitEdit()
@@ -537,9 +551,15 @@ function MessageBubble({ m, isMine, userId, myUserId }) {
   )
 }
 
-function FileMessage({ m, isMine, myUserId }) {
+interface FileMessageProps {
+  m: any
+  isMine: boolean
+  myUserId: string
+}
+
+function FileMessage({ m, isMine: _isMine, myUserId: _myUserId }: FileMessageProps) {
   const [downloading, setDownloading] = useState(false)
-  const [status, setStatus] = useState(null)
+  const [status, setStatus] = useState<string | null>(null)
 
   async function download() {
     setDownloading(true)

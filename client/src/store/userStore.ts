@@ -1,7 +1,28 @@
-// @ts-nocheck
 import { create } from 'zustand'
+import type { User } from '@task-hub/shared'
 
-export const useUserStore = create((set, get) => ({
+interface UserStoreState {
+  users: User[]
+  onlineIds: string[]
+  pendingUsers: User[]
+}
+
+interface UserStoreActions {
+  setUsers: (users: User[]) => void
+  setOnlineUsers: (onlineIds: string[]) => void
+  setPendingUsers: (pendingUsers: User[]) => void
+  addPendingUser: (user: User) => void
+  removePendingUser: (userId: string) => void
+  addUser: (user: User) => void
+  setUserOnline: (userId: string) => void
+  setUserOffline: (userId: string) => void
+  getUserById: (id: string) => User | undefined
+  isOnline: (userId: string) => boolean
+  getOnlineUsers: () => User[]
+  getOfflineUsers: () => User[]
+}
+
+export const useUserStore = create<UserStoreState & UserStoreActions>()((set, get) => ({
   users: [], // all known active users
   onlineIds: [], // currently online user IDs
   pendingUsers: [], // users awaiting admin approval

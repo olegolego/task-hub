@@ -1,12 +1,12 @@
 import Database from 'better-sqlite3'
 import * as path from 'path'
-import * as os from 'os'
 import * as fs from 'fs'
 import { createLogger } from '../utils/logger.js'
+import { config } from '../config.js'
 
 const log = createLogger('db')
 
-const DATA_DIR = process.env.DATA_DIR || path.join(os.homedir(), '.taskmanager-server')
+const DATA_DIR = config.DATA_DIR
 const DB_PATH = path.join(DATA_DIR, 'taskmanager.db')
 
 let db: Database.Database

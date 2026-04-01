@@ -1,8 +1,30 @@
-// @ts-nocheck
 import { create } from 'zustand'
 import { ipc } from '../utils/ipc'
+import type { CompanyFile } from '@task-hub/shared'
 
-export const useFilesStore = create((set, get) => ({
+interface FilesStoreState {
+  files: CompanyFile[]
+  folders: string[]
+  loading: boolean
+}
+
+interface FilesStoreActions {
+  setFiles: (files: CompanyFile[]) => void
+  setFolders: (folders: string[]) => void
+  addFolder: (name: string) => void
+  createFolder: (name: string) => void
+  addFile: (file: CompanyFile) => void
+  removeFile: (fileId: string) => void
+  loadFiles: () => void
+  deleteFile: (fileId: string) => void
+  deleteFolder: (name: string) => void
+  renameFile: (fileId: string, name: string) => void
+  updateFileName: (fileId: string, name: string) => void
+  removeFolder: (name: string) => void
+  getFolders: () => string[]
+}
+
+export const useFilesStore = create<FilesStoreState & FilesStoreActions>()((set, get) => ({
   files: [],
   folders: [],
   loading: false,

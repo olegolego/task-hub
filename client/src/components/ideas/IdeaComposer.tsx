@@ -1,14 +1,17 @@
-// @ts-nocheck
 import React, { useState } from 'react'
 import { useIdeaStore } from '../../store/ideaStore'
 
-export default function IdeaComposer({ groupId = null }) {
+interface IdeaComposerProps {
+  groupId?: string | null
+}
+
+export default function IdeaComposer({ groupId = null }: IdeaComposerProps) {
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [expanded, setExpanded] = useState(false)
   const { postIdea } = useIdeaStore()
 
-  function handleSubmit(e) {
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const t = title.trim()
     if (!t) return

@@ -1,9 +1,8 @@
-// @ts-nocheck
 import React from 'react'
 import { useConnectionStore } from '../../store/connectionStore'
 import { useUserStore } from '../../store/userStore'
 
-const STATE_LABELS = {
+const STATE_LABELS: Record<string, { label: string; color: string }> = {
   connecting: { label: 'Connecting…', color: '#ffd166' },
   authenticating: { label: 'Authenticating…', color: '#ffd166' },
   connected: { label: 'Connected', color: '#06d6a0' },

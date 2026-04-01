@@ -7,7 +7,7 @@ export interface Idea {
   created_by: string
   group_id?: string | null
   category: string
-  status: IdeaStatusKey
+  status: IdeaStatusKey | string
   pinned: number
   created_at: string
   updated_at: string
@@ -26,4 +26,6 @@ export interface IdeaComment {
   user_id: string
   body: string
   created_at: string
+  avatarColor?: string | null
+  displayName?: string | null
 }

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useEffect, useRef, useState } from 'react'
 import { useFilesStore } from '../../store/filesStore'
 import { useConnectionStore } from '../../store/connectionStore'
@@ -14,7 +13,7 @@ const MIME_ICON = (mime = '') => {
   return '📎'
 }
 
-function formatBytes(n) {
+function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
   return `${(n / (1024 * 1024)).toFixed(1)} MB`
@@ -35,7 +34,7 @@ export default function FilesPanel() {
   const myRole = useConnectionStore((s) => s.myRole)
   const [activeFolder, setActiveFolder] = useState('All')
   const [uploading, setUploading] = useState(false)
-  const [downloadingId, setDownloadingId] = useState(null)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [showNewFolder, setShowNewFolder] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
 
@@ -56,7 +55,7 @@ export default function FilesPanel() {
     }
   }
 
-  function handleNewFolder(e) {
+  function handleNewFolder(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const name = newFolderName.trim()
     if (!name) return
@@ -65,7 +64,7 @@ export default function FilesPanel() {
     setShowNewFolder(false)
   }
 
-  async function handleDownload(file) {
+  async function handleDownload(file: any) {
     setDownloadingId(file.id)
     try {
       await ipc.downloadCompanyFile({ fileId: file.id, fileName: file.name })
@@ -368,14 +367,32 @@ export default function FilesPanel() {
   )
 }
 
-function FileRow({ file, myUserId, myRole, downloading, onDownload, onDelete, onRename }) {
+interface FileRowProps {
+  file: any
+  myUserId: string
+  myRole: string
+  downloading: boolean
+  onDownload: () => void
+  onDelete: () => void
+  onRename: (name: string) => void
+}
+
+function FileRow({
+  file,
+  myUserId,
+  myRole,
+  downloading,
+  onDownload,
+  onDelete,
+  onRename,
+}: FileRowProps) {
   const [hovered, setHovered] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState('')
-  const editRef = useRef(null)
+  const editRef = useRef<HTMLInputElement>(null)
   const canDelete = file.uploadedBy === myUserId || myRole === 'admin'
 
-  function startEdit(e) {
+  function startEdit(e: React.MouseEvent) {
     e.stopPropagation()
     setEditName(file.name)
     setEditing(true)
@@ -390,7 +407,7 @@ function FileRow({ file, myUserId, myRole, downloading, onDownload, onDelete, on
     setEditing(false)
   }
 
-  function handleEditKey(e) {
+  function handleEditKey(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') {
       e.preventDefault()
       commitEdit()

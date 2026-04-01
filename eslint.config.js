@@ -114,9 +114,9 @@ export default [
       'no-unused-vars': 'off',
     },
   },
-  // CommonJS JavaScript files
+  // CommonJS JavaScript files (shared, Electron main process)
   {
-    files: ['server/**/*.js', 'shared/**/*.js', '**/*.cjs'],
+    files: ['shared/**/*.js', 'client/electron/**/*.js', '**/*.cjs'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'commonjs',
@@ -124,11 +124,13 @@ export default [
     },
     rules: {
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      'no-empty': 'warn',
     },
   },
   // ESM JavaScript files
   {
     files: ['client/**/*.js', 'client/**/*.jsx', '**/*.mjs'],
+    ignores: ['client/electron/**'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',

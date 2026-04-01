@@ -1,9 +1,12 @@
-// @ts-nocheck
 import React from 'react'
 import TaskItem from './TaskItem'
 import { useTaskStore } from '../store/taskStore'
 
-export default function TaskList({ groupId = null }) {
+interface TaskListProps {
+  groupId?: string | null
+}
+
+export default function TaskList({ groupId = null }: TaskListProps) {
   const getFilteredTasks = useTaskStore((s) => s.getFilteredTasks)
   const tasks = getFilteredTasks(groupId)
 

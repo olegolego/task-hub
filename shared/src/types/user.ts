@@ -6,6 +6,7 @@ export interface User {
   public_key: string
   enc_public_key?: string | null
   display_name: string
+  displayName?: string | null
   email?: string | null
   role: UserRole
   status: UserStatus

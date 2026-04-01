@@ -1,11 +1,14 @@
-// @ts-nocheck
 import React, { useState, useRef, useEffect } from 'react'
 import { useTaskStore } from '../store/taskStore'
 import { parseTaskInput } from '../utils/constants'
 
-export default function TaskInput({ groupId = null }) {
+interface TaskInputProps {
+  groupId?: string | null
+}
+
+export default function TaskInput({ groupId = null }: TaskInputProps) {
   const [value, setValue] = useState('')
-  const inputRef = useRef(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const { addTask, setInputRef } = useTaskStore()
 
   useEffect(() => {
@@ -13,7 +16,7 @@ export default function TaskInput({ groupId = null }) {
     inputRef.current?.focus()
   }, [])
 
-  async function handleSubmit(e) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const trimmed = value.trim()
     if (!trimmed) return

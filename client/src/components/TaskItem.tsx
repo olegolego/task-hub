@@ -1,16 +1,20 @@
-// @ts-nocheck
 import React, { useState, useRef, useEffect, memo } from 'react'
 import { PRIORITIES } from '../utils/constants'
 import { useTaskStore } from '../store/taskStore'
+import type { Task } from '@task-hub/shared'
 
-const TaskItem = memo(function TaskItem({ task }) {
+interface TaskItemProps {
+  task: Task
+}
+
+const TaskItem = memo(function TaskItem({ task }: TaskItemProps) {
   const { toggleTask, updateTaskTitle, updateTaskPriority, deleteTask } = useTaskStore()
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState(task.title)
   const [hovered, setHovered] = useState(false)
   const [showPriorityMenu, setShowPriorityMenu] = useState(false)
   const [bouncing, setBouncing] = useState(false)
-  const editRef = useRef(null)
+  const editRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (editing) editRef.current?.focus()
@@ -33,7 +37,7 @@ const TaskItem = memo(function TaskItem({ task }) {
     setEditing(false)
   }
 
-  function handleEditKeyDown(e) {
+  function handleEditKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') commitEdit()
     if (e.key === 'Escape') {
       setEditValue(task.title)
@@ -41,7 +45,7 @@ const TaskItem = memo(function TaskItem({ task }) {
     }
   }
 
-  function handlePriorityChange(p) {
+  function handlePriorityChange(p: string) {
     updateTaskPriority(task.id, p)
     setShowPriorityMenu(false)
   }

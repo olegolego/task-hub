@@ -1,13 +1,16 @@
 import { v4 as uuidv4 } from 'uuid'
+import { execFileSync } from 'child_process'
 import * as fs from 'fs'
 import * as path from 'path'
 import { createLogger } from '../utils/logger.js'
+import { getDataDir } from '../db/database.js'
+import { config } from '../config.js'
 import type Database from 'better-sqlite3'
 import type { ServerModule, ModuleContext } from './types.js'
 
 const log = createLogger('llmChat')
 
-const LLM_SERVER_URL = process.env.LLM_SERVER_URL || 'http://localhost:8766'
+const LLM_SERVER_URL = config.LLM_SERVER_URL
 const MAX_HISTORY = 20
 
 const CONTEXT_KEYWORDS: Record<string, RegExp> = {
@@ -184,7 +187,6 @@ function ctxFiles(db: Database.Database, dataDir: string, fileIds: string[] = []
       textExts.test(f.name as string)
     if (isPdf) {
       try {
-        const { execFileSync } = require('child_process')
         const text = execFileSync('pdftotext', [fullPath, '-'], {
           timeout: 10000,
           maxBuffer: 2 * 1024 * 1024,
@@ -472,7 +474,6 @@ const llmChatModule: ServerModule = {
       ws.send(JSON.stringify({ type: 'llm:thinking', chatId, messageId: userMsgId }))
 
       try {
-        const { getDataDir } = require('../db/database')
         const contextKeys = detectContext(p.message)
         const specificFileIds = extractFileMentions(p.message)
         const systemPrompt = buildSystemPrompt(

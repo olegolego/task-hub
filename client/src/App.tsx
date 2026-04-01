@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useEffect, useState } from 'react'
 import TitleBar from './components/TitleBar'
 import TaskInput from './components/TaskInput'
@@ -34,7 +33,7 @@ const PANEL_TITLES = {
 export default function App() {
   const { loadSettings, theme } = useTaskStore()
   const { setServerUrl, setDisplayName } = useConnectionStore()
-  const [activePanel, setActivePanel] = useState(NAV_PANELS.TASKS)
+  const [activePanel, setActivePanel] = useState<string>(NAV_PANELS.TASKS)
   const [isSetup, setIsSetup] = useState(false)
   const [loading, setLoading] = useState(true)
 
